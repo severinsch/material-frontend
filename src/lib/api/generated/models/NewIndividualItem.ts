@@ -39,19 +39,19 @@ export interface NewIndividualItem {
      * @type {string}
      * @memberof NewIndividualItem
      */
-    materialId?: string;
+    materialId: string;
     /**
      * 
      * @type {string}
      * @memberof NewIndividualItem
      */
-    identifier?: string;
+    identifier: string;
     /**
      * 
      * @type {Condition}
      * @memberof NewIndividualItem
      */
-    condition?: Condition;
+    condition: Condition;
     /**
      * 
      * @type {MaterialLocation}
@@ -78,6 +78,9 @@ export interface NewIndividualItem {
  * Check if a given object implements the NewIndividualItem interface.
  */
 export function instanceOfNewIndividualItem(value: object): value is NewIndividualItem {
+    if (!('materialId' in value) || value['materialId'] === undefined) return false;
+    if (!('identifier' in value) || value['identifier'] === undefined) return false;
+    if (!('condition' in value) || value['condition'] === undefined) return false;
     return true;
 }
 
@@ -91,9 +94,9 @@ export function NewIndividualItemFromJSONTyped(json: any, ignoreDiscriminator: b
     }
     return {
         
-        'materialId': json['materialId'] == null ? undefined : json['materialId'],
-        'identifier': json['identifier'] == null ? undefined : json['identifier'],
-        'condition': json['condition'] == null ? undefined : ConditionFromJSON(json['condition']),
+        'materialId': json['materialId'],
+        'identifier': json['identifier'],
+        'condition': ConditionFromJSON(json['condition']),
         'storageLocation': json['storageLocation'] == null ? undefined : MaterialLocationFromJSON(json['storageLocation']),
         'purchasePrice': json['purchasePrice'] == null ? undefined : json['purchasePrice'],
         'purchaseDate': json['purchaseDate'] == null ? undefined : json['purchaseDate'],

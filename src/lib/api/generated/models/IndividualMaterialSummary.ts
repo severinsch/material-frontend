@@ -39,19 +39,19 @@ export interface IndividualMaterialSummary {
      * @type {string}
      * @memberof IndividualMaterialSummary
      */
-    id?: string;
+    id: string;
     /**
      * 
      * @type {string}
      * @memberof IndividualMaterialSummary
      */
-    name?: string;
+    name: string;
     /**
      * 
      * @type {TrackingType}
      * @memberof IndividualMaterialSummary
      */
-    trackingType?: TrackingType;
+    trackingType: TrackingType;
     /**
      * 
      * @type {string}
@@ -75,13 +75,13 @@ export interface IndividualMaterialSummary {
      * @type {number}
      * @memberof IndividualMaterialSummary
      */
-    availableCount?: number;
+    availableCount: number;
     /**
      * 
      * @type {number}
      * @memberof IndividualMaterialSummary
      */
-    damagedCount?: number;
+    damagedCount: number;
 }
 
 
@@ -90,6 +90,11 @@ export interface IndividualMaterialSummary {
  * Check if a given object implements the IndividualMaterialSummary interface.
  */
 export function instanceOfIndividualMaterialSummary(value: object): value is IndividualMaterialSummary {
+    if (!('id' in value) || value['id'] === undefined) return false;
+    if (!('name' in value) || value['name'] === undefined) return false;
+    if (!('trackingType' in value) || value['trackingType'] === undefined) return false;
+    if (!('availableCount' in value) || value['availableCount'] === undefined) return false;
+    if (!('damagedCount' in value) || value['damagedCount'] === undefined) return false;
     return true;
 }
 
@@ -103,14 +108,14 @@ export function IndividualMaterialSummaryFromJSONTyped(json: any, ignoreDiscrimi
     }
     return {
         
-        'id': json['id'] == null ? undefined : json['id'],
-        'name': json['name'] == null ? undefined : json['name'],
-        'trackingType': json['trackingType'] == null ? undefined : TrackingTypeFromJSON(json['trackingType']),
+        'id': json['id'],
+        'name': json['name'],
+        'trackingType': TrackingTypeFromJSON(json['trackingType']),
         'category': json['category'] == null ? undefined : json['category'],
         'description': json['description'] == null ? undefined : json['description'],
         'location': json['location'] == null ? undefined : MaterialLocationFromJSON(json['location']),
-        'availableCount': json['availableCount'] == null ? undefined : json['availableCount'],
-        'damagedCount': json['damagedCount'] == null ? undefined : json['damagedCount'],
+        'availableCount': json['availableCount'],
+        'damagedCount': json['damagedCount'],
     };
 }
 

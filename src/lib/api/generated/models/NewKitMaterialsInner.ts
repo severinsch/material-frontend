@@ -24,19 +24,21 @@ export interface NewKitMaterialsInner {
      * @type {string}
      * @memberof NewKitMaterialsInner
      */
-    materialId?: string;
+    materialId: string;
     /**
      * 
      * @type {number}
      * @memberof NewKitMaterialsInner
      */
-    quantityRequired?: number;
+    quantityRequired: number;
 }
 
 /**
  * Check if a given object implements the NewKitMaterialsInner interface.
  */
 export function instanceOfNewKitMaterialsInner(value: object): value is NewKitMaterialsInner {
+    if (!('materialId' in value) || value['materialId'] === undefined) return false;
+    if (!('quantityRequired' in value) || value['quantityRequired'] === undefined) return false;
     return true;
 }
 
@@ -50,8 +52,8 @@ export function NewKitMaterialsInnerFromJSONTyped(json: any, ignoreDiscriminator
     }
     return {
         
-        'materialId': json['materialId'] == null ? undefined : json['materialId'],
-        'quantityRequired': json['quantityRequired'] == null ? undefined : json['quantityRequired'],
+        'materialId': json['materialId'],
+        'quantityRequired': json['quantityRequired'],
     };
 }
 

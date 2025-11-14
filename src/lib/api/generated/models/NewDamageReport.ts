@@ -24,13 +24,13 @@ export interface NewDamageReport {
      * @type {string}
      * @memberof NewDamageReport
      */
-    inventoryItemId?: string;
+    inventoryItemId: string;
     /**
      * 
      * @type {string}
      * @memberof NewDamageReport
      */
-    description?: string;
+    description: string;
     /**
      * 
      * @type {boolean}
@@ -43,6 +43,8 @@ export interface NewDamageReport {
  * Check if a given object implements the NewDamageReport interface.
  */
 export function instanceOfNewDamageReport(value: object): value is NewDamageReport {
+    if (!('inventoryItemId' in value) || value['inventoryItemId'] === undefined) return false;
+    if (!('description' in value) || value['description'] === undefined) return false;
     return true;
 }
 
@@ -56,8 +58,8 @@ export function NewDamageReportFromJSONTyped(json: any, ignoreDiscriminator: boo
     }
     return {
         
-        'inventoryItemId': json['inventoryItemId'] == null ? undefined : json['inventoryItemId'],
-        'description': json['description'] == null ? undefined : json['description'],
+        'inventoryItemId': json['inventoryItemId'],
+        'description': json['description'],
         'isResolved': json['isResolved'] == null ? undefined : json['isResolved'],
     };
 }

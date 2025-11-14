@@ -7,7 +7,6 @@
 Name | Type
 ------------ | -------------
 `name` | string
-`trackingType` | [TrackingType](TrackingType.md)
 `category` | string
 `description` | string
 
@@ -19,7 +18,6 @@ import type { NewIndividualMaterial } from ''
 // TODO: Update the object below with actual values
 const example = {
   "name": null,
-  "trackingType": null,
   "category": null,
   "description": null,
 } satisfies NewIndividualMaterial

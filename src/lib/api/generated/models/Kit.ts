@@ -32,13 +32,13 @@ export interface Kit {
      * @type {string}
      * @memberof Kit
      */
-    id?: string;
+    id: string;
     /**
      * 
      * @type {string}
      * @memberof Kit
      */
-    name?: string;
+    name: string;
     /**
      * 
      * @type {string}
@@ -50,13 +50,16 @@ export interface Kit {
      * @type {Array<KitMaterialsInner>}
      * @memberof Kit
      */
-    materials?: Array<KitMaterialsInner>;
+    materials: Array<KitMaterialsInner>;
 }
 
 /**
  * Check if a given object implements the Kit interface.
  */
 export function instanceOfKit(value: object): value is Kit {
+    if (!('id' in value) || value['id'] === undefined) return false;
+    if (!('name' in value) || value['name'] === undefined) return false;
+    if (!('materials' in value) || value['materials'] === undefined) return false;
     return true;
 }
 
@@ -70,10 +73,10 @@ export function KitFromJSONTyped(json: any, ignoreDiscriminator: boolean): Kit {
     }
     return {
         
-        'id': json['id'] == null ? undefined : json['id'],
-        'name': json['name'] == null ? undefined : json['name'],
+        'id': json['id'],
+        'name': json['name'],
         'description': json['description'] == null ? undefined : json['description'],
-        'materials': json['materials'] == null ? undefined : ((json['materials'] as Array<any>).map(KitMaterialsInnerFromJSON)),
+        'materials': ((json['materials'] as Array<any>).map(KitMaterialsInnerFromJSON)),
     };
 }
 
@@ -91,7 +94,7 @@ export function KitToJSONTyped(value?: Kit | null, ignoreDiscriminator: boolean 
         'id': value['id'],
         'name': value['name'],
         'description': value['description'],
-        'materials': value['materials'] == null ? undefined : ((value['materials'] as Array<any>).map(KitMaterialsInnerToJSON)),
+        'materials': ((value['materials'] as Array<any>).map(KitMaterialsInnerToJSON)),
     };
 }
 

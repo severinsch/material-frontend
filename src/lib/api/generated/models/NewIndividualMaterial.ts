@@ -13,14 +13,6 @@
  */
 
 import { mapValues } from '../runtime';
-import type { TrackingType } from './TrackingType';
-import {
-    TrackingTypeFromJSON,
-    TrackingTypeFromJSONTyped,
-    TrackingTypeToJSON,
-    TrackingTypeToJSONTyped,
-} from './TrackingType';
-
 /**
  * 
  * @export
@@ -32,13 +24,7 @@ export interface NewIndividualMaterial {
      * @type {string}
      * @memberof NewIndividualMaterial
      */
-    name?: string;
-    /**
-     * 
-     * @type {TrackingType}
-     * @memberof NewIndividualMaterial
-     */
-    trackingType?: TrackingType;
+    name: string;
     /**
      * 
      * @type {string}
@@ -53,12 +39,11 @@ export interface NewIndividualMaterial {
     description?: string;
 }
 
-
-
 /**
  * Check if a given object implements the NewIndividualMaterial interface.
  */
 export function instanceOfNewIndividualMaterial(value: object): value is NewIndividualMaterial {
+    if (!('name' in value) || value['name'] === undefined) return false;
     return true;
 }
 
@@ -72,8 +57,7 @@ export function NewIndividualMaterialFromJSONTyped(json: any, ignoreDiscriminato
     }
     return {
         
-        'name': json['name'] == null ? undefined : json['name'],
-        'trackingType': json['trackingType'] == null ? undefined : TrackingTypeFromJSON(json['trackingType']),
+        'name': json['name'],
         'category': json['category'] == null ? undefined : json['category'],
         'description': json['description'] == null ? undefined : json['description'],
     };
@@ -91,7 +75,6 @@ export function NewIndividualMaterialToJSONTyped(value?: NewIndividualMaterial |
     return {
         
         'name': value['name'],
-        'trackingType': TrackingTypeToJSON(value['trackingType']),
         'category': value['category'],
         'description': value['description'],
     };

@@ -24,37 +24,42 @@ export interface DamageReport {
      * @type {string}
      * @memberof DamageReport
      */
-    id?: string;
+    id: string;
     /**
      * 
      * @type {string}
      * @memberof DamageReport
      */
-    inventoryItemId?: string;
+    inventoryItemId: string;
     /**
      * 
      * @type {string}
      * @memberof DamageReport
      */
-    description?: string;
+    description: string;
     /**
      * 
      * @type {boolean}
      * @memberof DamageReport
      */
-    isResolved?: boolean;
+    isResolved: boolean;
     /**
      * 
      * @type {string}
      * @memberof DamageReport
      */
-    reportedAt?: string;
+    reportedAt: string;
 }
 
 /**
  * Check if a given object implements the DamageReport interface.
  */
 export function instanceOfDamageReport(value: object): value is DamageReport {
+    if (!('id' in value) || value['id'] === undefined) return false;
+    if (!('inventoryItemId' in value) || value['inventoryItemId'] === undefined) return false;
+    if (!('description' in value) || value['description'] === undefined) return false;
+    if (!('isResolved' in value) || value['isResolved'] === undefined) return false;
+    if (!('reportedAt' in value) || value['reportedAt'] === undefined) return false;
     return true;
 }
 
@@ -68,11 +73,11 @@ export function DamageReportFromJSONTyped(json: any, ignoreDiscriminator: boolea
     }
     return {
         
-        'id': json['id'] == null ? undefined : json['id'],
-        'inventoryItemId': json['inventoryItemId'] == null ? undefined : json['inventoryItemId'],
-        'description': json['description'] == null ? undefined : json['description'],
-        'isResolved': json['isResolved'] == null ? undefined : json['isResolved'],
-        'reportedAt': json['reportedAt'] == null ? undefined : json['reportedAt'],
+        'id': json['id'],
+        'inventoryItemId': json['inventoryItemId'],
+        'description': json['description'],
+        'isResolved': json['isResolved'],
+        'reportedAt': json['reportedAt'],
     };
 }
 

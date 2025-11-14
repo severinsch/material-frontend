@@ -32,7 +32,7 @@ export interface NewKit {
      * @type {string}
      * @memberof NewKit
      */
-    name?: string;
+    name: string;
     /**
      * 
      * @type {string}
@@ -44,13 +44,15 @@ export interface NewKit {
      * @type {Array<NewKitMaterialsInner>}
      * @memberof NewKit
      */
-    materials?: Array<NewKitMaterialsInner>;
+    materials: Array<NewKitMaterialsInner>;
 }
 
 /**
  * Check if a given object implements the NewKit interface.
  */
 export function instanceOfNewKit(value: object): value is NewKit {
+    if (!('name' in value) || value['name'] === undefined) return false;
+    if (!('materials' in value) || value['materials'] === undefined) return false;
     return true;
 }
 
@@ -64,9 +66,9 @@ export function NewKitFromJSONTyped(json: any, ignoreDiscriminator: boolean): Ne
     }
     return {
         
-        'name': json['name'] == null ? undefined : json['name'],
+        'name': json['name'],
         'description': json['description'] == null ? undefined : json['description'],
-        'materials': json['materials'] == null ? undefined : ((json['materials'] as Array<any>).map(NewKitMaterialsInnerFromJSON)),
+        'materials': ((json['materials'] as Array<any>).map(NewKitMaterialsInnerFromJSON)),
     };
 }
 
@@ -83,7 +85,7 @@ export function NewKitToJSONTyped(value?: NewKit | null, ignoreDiscriminator: bo
         
         'name': value['name'],
         'description': value['description'],
-        'materials': value['materials'] == null ? undefined : ((value['materials'] as Array<any>).map(NewKitMaterialsInnerToJSON)),
+        'materials': ((value['materials'] as Array<any>).map(NewKitMaterialsInnerToJSON)),
     };
 }
 

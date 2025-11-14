@@ -39,25 +39,25 @@ export interface IndividualItem {
      * @type {string}
      * @memberof IndividualItem
      */
-    id?: string;
+    id: string;
     /**
      * 
      * @type {string}
      * @memberof IndividualItem
      */
-    materialId?: string;
+    materialId: string;
     /**
      * 
      * @type {string}
      * @memberof IndividualItem
      */
-    identifier?: string;
+    identifier: string;
     /**
      * 
      * @type {Condition}
      * @memberof IndividualItem
      */
-    condition?: Condition;
+    condition: Condition;
     /**
      * 
      * @type {MaterialLocation}
@@ -84,6 +84,10 @@ export interface IndividualItem {
  * Check if a given object implements the IndividualItem interface.
  */
 export function instanceOfIndividualItem(value: object): value is IndividualItem {
+    if (!('id' in value) || value['id'] === undefined) return false;
+    if (!('materialId' in value) || value['materialId'] === undefined) return false;
+    if (!('identifier' in value) || value['identifier'] === undefined) return false;
+    if (!('condition' in value) || value['condition'] === undefined) return false;
     return true;
 }
 
@@ -97,10 +101,10 @@ export function IndividualItemFromJSONTyped(json: any, ignoreDiscriminator: bool
     }
     return {
         
-        'id': json['id'] == null ? undefined : json['id'],
-        'materialId': json['materialId'] == null ? undefined : json['materialId'],
-        'identifier': json['identifier'] == null ? undefined : json['identifier'],
-        'condition': json['condition'] == null ? undefined : ConditionFromJSON(json['condition']),
+        'id': json['id'],
+        'materialId': json['materialId'],
+        'identifier': json['identifier'],
+        'condition': ConditionFromJSON(json['condition']),
         'storageLocation': json['storageLocation'] == null ? undefined : MaterialLocationFromJSON(json['storageLocation']),
         'purchasePrice': json['purchasePrice'] == null ? undefined : json['purchasePrice'],
         'purchaseDate': json['purchaseDate'] == null ? undefined : json['purchaseDate'],

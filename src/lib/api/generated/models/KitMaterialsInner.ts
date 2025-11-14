@@ -24,25 +24,28 @@ export interface KitMaterialsInner {
      * @type {string}
      * @memberof KitMaterialsInner
      */
-    materialId?: string;
+    materialId: string;
     /**
      * 
      * @type {string}
      * @memberof KitMaterialsInner
      */
-    materialName?: string;
+    materialName: string;
     /**
      * 
      * @type {number}
      * @memberof KitMaterialsInner
      */
-    quantityRequired?: number;
+    quantityRequired: number;
 }
 
 /**
  * Check if a given object implements the KitMaterialsInner interface.
  */
 export function instanceOfKitMaterialsInner(value: object): value is KitMaterialsInner {
+    if (!('materialId' in value) || value['materialId'] === undefined) return false;
+    if (!('materialName' in value) || value['materialName'] === undefined) return false;
+    if (!('quantityRequired' in value) || value['quantityRequired'] === undefined) return false;
     return true;
 }
 
@@ -56,9 +59,9 @@ export function KitMaterialsInnerFromJSONTyped(json: any, ignoreDiscriminator: b
     }
     return {
         
-        'materialId': json['materialId'] == null ? undefined : json['materialId'],
-        'materialName': json['materialName'] == null ? undefined : json['materialName'],
-        'quantityRequired': json['quantityRequired'] == null ? undefined : json['quantityRequired'],
+        'materialId': json['materialId'],
+        'materialName': json['materialName'],
+        'quantityRequired': json['quantityRequired'],
     };
 }
 

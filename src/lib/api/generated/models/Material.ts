@@ -39,19 +39,19 @@ export interface Material {
      * @type {string}
      * @memberof Material
      */
-    id?: string;
+    id: string;
     /**
      * 
      * @type {string}
      * @memberof Material
      */
-    name?: string;
+    name: string;
     /**
      * 
      * @type {TrackingType}
      * @memberof Material
      */
-    trackingType?: TrackingType;
+    trackingType: TrackingType;
     /**
      * 
      * @type {string}
@@ -75,13 +75,13 @@ export interface Material {
      * @type {number}
      * @memberof Material
      */
-    availableCount?: number;
+    availableCount: number;
     /**
      * 
      * @type {number}
      * @memberof Material
      */
-    damagedCount?: number;
+    damagedCount: number;
 }
 
 
@@ -90,6 +90,11 @@ export interface Material {
  * Check if a given object implements the Material interface.
  */
 export function instanceOfMaterial(value: object): value is Material {
+    if (!('id' in value) || value['id'] === undefined) return false;
+    if (!('name' in value) || value['name'] === undefined) return false;
+    if (!('trackingType' in value) || value['trackingType'] === undefined) return false;
+    if (!('availableCount' in value) || value['availableCount'] === undefined) return false;
+    if (!('damagedCount' in value) || value['damagedCount'] === undefined) return false;
     return true;
 }
 
@@ -103,14 +108,14 @@ export function MaterialFromJSONTyped(json: any, ignoreDiscriminator: boolean): 
     }
     return {
         
-        'id': json['id'] == null ? undefined : json['id'],
-        'name': json['name'] == null ? undefined : json['name'],
-        'trackingType': json['trackingType'] == null ? undefined : TrackingTypeFromJSON(json['trackingType']),
+        'id': json['id'],
+        'name': json['name'],
+        'trackingType': TrackingTypeFromJSON(json['trackingType']),
         'category': json['category'] == null ? undefined : json['category'],
         'description': json['description'] == null ? undefined : json['description'],
         'location': json['location'] == null ? undefined : MaterialLocationFromJSON(json['location']),
-        'availableCount': json['availableCount'] == null ? undefined : json['availableCount'],
-        'damagedCount': json['damagedCount'] == null ? undefined : json['damagedCount'],
+        'availableCount': json['availableCount'],
+        'damagedCount': json['damagedCount'],
     };
 }
 

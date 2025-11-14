@@ -24,7 +24,7 @@ export interface NewBulkMaterial {
      * @type {string}
      * @memberof NewBulkMaterial
      */
-    name?: string;
+    name: string;
     /**
      * 
      * @type {string}
@@ -48,13 +48,13 @@ export interface NewBulkMaterial {
      * @type {number}
      * @memberof NewBulkMaterial
      */
-    availableCount?: number;
+    availableCount: number;
     /**
      * 
      * @type {number}
      * @memberof NewBulkMaterial
      */
-    damagedCount?: number;
+    damagedCount: number;
     /**
      * 
      * @type {string}
@@ -73,6 +73,9 @@ export interface NewBulkMaterial {
  * Check if a given object implements the NewBulkMaterial interface.
  */
 export function instanceOfNewBulkMaterial(value: object): value is NewBulkMaterial {
+    if (!('name' in value) || value['name'] === undefined) return false;
+    if (!('availableCount' in value) || value['availableCount'] === undefined) return false;
+    if (!('damagedCount' in value) || value['damagedCount'] === undefined) return false;
     return true;
 }
 
@@ -86,12 +89,12 @@ export function NewBulkMaterialFromJSONTyped(json: any, ignoreDiscriminator: boo
     }
     return {
         
-        'name': json['name'] == null ? undefined : json['name'],
+        'name': json['name'],
         'storageLocationId': json['storageLocationId'] == null ? undefined : json['storageLocationId'],
         'category': json['category'] == null ? undefined : json['category'],
         'description': json['description'] == null ? undefined : json['description'],
-        'availableCount': json['availableCount'] == null ? undefined : json['availableCount'],
-        'damagedCount': json['damagedCount'] == null ? undefined : json['damagedCount'],
+        'availableCount': json['availableCount'],
+        'damagedCount': json['damagedCount'],
         'purchaseDate': json['purchaseDate'] == null ? undefined : json['purchaseDate'],
         'purchasePrice': json['purchasePrice'] == null ? undefined : json['purchasePrice'],
     };

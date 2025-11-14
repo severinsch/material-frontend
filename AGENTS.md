@@ -64,7 +64,7 @@ The primary view is the material list page at `src/routes/+page.svelte`. This is
 #### **Data Loading (`src/routes/+page.ts`)**
 1.  Create a `load` function in `+page.ts`.
 2.  Import the `apiClient` from `$lib/api/client`.
-3.  Call the method to get the list of materials (e.g., `apiClient.getAllMaterials()`).
+3.  Call the method to get the list of materials.
 4.  Return the data, ensuring it is correctly typed using the generated `Material` type.
 
 #### **UI Implementation (`src/routes/+page.svelte`)**

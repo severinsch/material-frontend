@@ -24,13 +24,13 @@ export interface MaterialLocation {
      * @type {string}
      * @memberof MaterialLocation
      */
-    id?: string;
+    id: string;
     /**
      * 
      * @type {string}
      * @memberof MaterialLocation
      */
-    name?: string;
+    name: string;
     /**
      * 
      * @type {string}
@@ -43,6 +43,8 @@ export interface MaterialLocation {
  * Check if a given object implements the MaterialLocation interface.
  */
 export function instanceOfMaterialLocation(value: object): value is MaterialLocation {
+    if (!('id' in value) || value['id'] === undefined) return false;
+    if (!('name' in value) || value['name'] === undefined) return false;
     return true;
 }
 
@@ -56,8 +58,8 @@ export function MaterialLocationFromJSONTyped(json: any, ignoreDiscriminator: bo
     }
     return {
         
-        'id': json['id'] == null ? undefined : json['id'],
-        'name': json['name'] == null ? undefined : json['name'],
+        'id': json['id'],
+        'name': json['name'],
         'description': json['description'] == null ? undefined : json['description'],
     };
 }

@@ -17,7 +17,7 @@ Your code must adhere to this stack. Do not introduce new libraries without expl
 *   **Framework:** **SvelteKit**. Always leverage its core features like file-based routing and `load` functions.
 *   **Language:** **TypeScript**. Strict mode is enabled. The `any` type is forbidden.
 *   **Styling:** **Tailwind CSS**. All styling must be done with utility classes. Write responsive, mobile-first CSS.
-*   **Component Library:** **`shadcn-svelte`**. Use the CLI (`bunx shadcn-svelte add ...`) to add components. These components are owned by the project, so you are encouraged to modify their code to fit specific needs.
+*   **Component Library:** **`shadcn-svelte`**. Use the CLI (`bunx shadcn-svelte add ...`) to add components or ask the user to do it. The components are located in `src/lib/components/ui`. These components are owned by the project, so you are encouraged to modify their code to fit specific needs.
 *   **Package Manager & Runtime:** **Bun**. Use `bun install`, `bun add`, and `bun run dev`.
 *   **API Client:** A **pre-generated OpenAPI client**. This is the single source of truth for all communication with the backend.
 

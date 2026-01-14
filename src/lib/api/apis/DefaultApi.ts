@@ -26,6 +26,8 @@ import type {
   NewIndividualItem,
   NewIndividualMaterial,
   NewKit,
+  NewStorageLocation,
+  StorageLocation,
 } from '../models/index';
 import {
     BulkMaterialFromJSON,
@@ -50,6 +52,10 @@ import {
     NewIndividualMaterialToJSON,
     NewKitFromJSON,
     NewKitToJSON,
+    NewStorageLocationFromJSON,
+    NewStorageLocationToJSON,
+    StorageLocationFromJSON,
+    StorageLocationToJSON,
 } from '../models/index';
 
 export interface DamagesGetRequest {
@@ -97,6 +103,14 @@ export interface KitsIdPutRequest {
 
 export interface KitsPostRequest {
     newKit?: NewKit;
+}
+
+export interface LocationsIdDeleteRequest {
+    id: string;
+}
+
+export interface LocationsPostRequest {
+    newStorageLocation?: NewStorageLocation;
 }
 
 export interface MaterialsBulkIdPutRequest {
@@ -559,6 +573,103 @@ export class DefaultApi extends runtime.BaseAPI {
      */
     async kitsPost(requestParameters: KitsPostRequest = {}, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<Kit> {
         const response = await this.kitsPostRaw(requestParameters, initOverrides);
+        return await response.value();
+    }
+
+    /**
+     * Get all Locations
+     */
+    async locationsGetRaw(initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<runtime.ApiResponse<Array<StorageLocation>>> {
+        const queryParameters: any = {};
+
+        const headerParameters: runtime.HTTPHeaders = {};
+
+
+        let urlPath = `/locations`;
+
+        const response = await this.request({
+            path: urlPath,
+            method: 'GET',
+            headers: headerParameters,
+            query: queryParameters,
+        }, initOverrides);
+
+        return new runtime.JSONApiResponse(response, (jsonValue) => jsonValue.map(StorageLocationFromJSON));
+    }
+
+    /**
+     * Get all Locations
+     */
+    async locationsGet(initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<Array<StorageLocation>> {
+        const response = await this.locationsGetRaw(initOverrides);
+        return await response.value();
+    }
+
+    /**
+     * Delete storage location
+     */
+    async locationsIdDeleteRaw(requestParameters: LocationsIdDeleteRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<runtime.ApiResponse<void>> {
+        if (requestParameters['id'] == null) {
+            throw new runtime.RequiredError(
+                'id',
+                'Required parameter "id" was null or undefined when calling locationsIdDelete().'
+            );
+        }
+
+        const queryParameters: any = {};
+
+        const headerParameters: runtime.HTTPHeaders = {};
+
+
+        let urlPath = `/locations/{id}`;
+        urlPath = urlPath.replace(`{${"id"}}`, encodeURIComponent(String(requestParameters['id'])));
+
+        const response = await this.request({
+            path: urlPath,
+            method: 'DELETE',
+            headers: headerParameters,
+            query: queryParameters,
+        }, initOverrides);
+
+        return new runtime.VoidApiResponse(response);
+    }
+
+    /**
+     * Delete storage location
+     */
+    async locationsIdDelete(requestParameters: LocationsIdDeleteRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<void> {
+        await this.locationsIdDeleteRaw(requestParameters, initOverrides);
+    }
+
+    /**
+     * Add new storage location
+     */
+    async locationsPostRaw(requestParameters: LocationsPostRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<runtime.ApiResponse<StorageLocation>> {
+        const queryParameters: any = {};
+
+        const headerParameters: runtime.HTTPHeaders = {};
+
+        headerParameters['Content-Type'] = 'application/json';
+
+
+        let urlPath = `/locations`;
+
+        const response = await this.request({
+            path: urlPath,
+            method: 'POST',
+            headers: headerParameters,
+            query: queryParameters,
+            body: NewStorageLocationToJSON(requestParameters['newStorageLocation']),
+        }, initOverrides);
+
+        return new runtime.JSONApiResponse(response, (jsonValue) => StorageLocationFromJSON(jsonValue));
+    }
+
+    /**
+     * Add new storage location
+     */
+    async locationsPost(requestParameters: LocationsPostRequest = {}, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<StorageLocation> {
+        const response = await this.locationsPostRaw(requestParameters, initOverrides);
         return await response.value();
     }
 

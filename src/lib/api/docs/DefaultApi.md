@@ -16,6 +16,9 @@ All URIs are relative to *http://localhost*
 | [**kitsIdGet**](DefaultApi.md#kitsidget) | **GET** /kits/{id} | Get Kit by id |
 | [**kitsIdPut**](DefaultApi.md#kitsidput) | **PUT** /kits/{id} | Update Kit |
 | [**kitsPost**](DefaultApi.md#kitspost) | **POST** /kits | Add new Kit |
+| [**locationsGet**](DefaultApi.md#locationsget) | **GET** /locations | Get all Locations |
+| [**locationsIdDelete**](DefaultApi.md#locationsiddelete) | **DELETE** /locations/{id} | Delete storage location |
+| [**locationsPost**](DefaultApi.md#locationspost) | **POST** /locations | Add new storage location |
 | [**materialsBulkIdPut**](DefaultApi.md#materialsbulkidput) | **PUT** /materials/bulk/{id} | Update Bulk Material |
 | [**materialsBulkPost**](DefaultApi.md#materialsbulkpost) | **POST** /materials/bulk | Create new Bulk Material |
 | [**materialsGet**](DefaultApi.md#materialsget) | **GET** /materials | Get all Materials |
@@ -821,6 +824,196 @@ No authorization required
 |-------------|-------------|------------------|
 | **201** | the newly created kit |  -  |
 | **200** |  |  -  |
+
+[[Back to top]](#) [[Back to API list]](../README.md#api-endpoints) [[Back to Model list]](../README.md#models) [[Back to README]](../README.md)
+
+
+## locationsGet
+
+> Array&lt;StorageLocation&gt; locationsGet()
+
+Get all Locations
+
+### Example
+
+```ts
+import {
+  Configuration,
+  DefaultApi,
+} from '';
+import type { LocationsGetRequest } from '';
+
+async function example() {
+  console.log("🚀 Testing  SDK...");
+  const api = new DefaultApi();
+
+  try {
+    const data = await api.locationsGet();
+    console.log(data);
+  } catch (error) {
+    console.error(error);
+  }
+}
+
+// Run the test
+example().catch(console.error);
+```
+
+### Parameters
+
+This endpoint does not need any parameter.
+
+### Return type
+
+[**Array&lt;StorageLocation&gt;**](StorageLocation.md)
+
+### Authorization
+
+No authorization required
+
+### HTTP request headers
+
+- **Content-Type**: Not defined
+- **Accept**: `application/json`
+
+
+### HTTP response details
+| Status code | Description | Response headers |
+|-------------|-------------|------------------|
+| **200** | A list of damages |  -  |
+
+[[Back to top]](#) [[Back to API list]](../README.md#api-endpoints) [[Back to Model list]](../README.md#models) [[Back to README]](../README.md)
+
+
+## locationsIdDelete
+
+> locationsIdDelete(id)
+
+Delete storage location
+
+### Example
+
+```ts
+import {
+  Configuration,
+  DefaultApi,
+} from '';
+import type { LocationsIdDeleteRequest } from '';
+
+async function example() {
+  console.log("🚀 Testing  SDK...");
+  const api = new DefaultApi();
+
+  const body = {
+    // string | The id of the location to delete
+    id: id_example,
+  } satisfies LocationsIdDeleteRequest;
+
+  try {
+    const data = await api.locationsIdDelete(body);
+    console.log(data);
+  } catch (error) {
+    console.error(error);
+  }
+}
+
+// Run the test
+example().catch(console.error);
+```
+
+### Parameters
+
+
+| Name | Type | Description  | Notes |
+|------------- | ------------- | ------------- | -------------|
+| **id** | `string` | The id of the location to delete | [Defaults to `undefined`] |
+
+### Return type
+
+`void` (Empty response body)
+
+### Authorization
+
+No authorization required
+
+### HTTP request headers
+
+- **Content-Type**: Not defined
+- **Accept**: Not defined
+
+
+### HTTP response details
+| Status code | Description | Response headers |
+|-------------|-------------|------------------|
+| **200** |  |  -  |
+| **400** |  |  -  |
+| **404** |  |  -  |
+
+[[Back to top]](#) [[Back to API list]](../README.md#api-endpoints) [[Back to Model list]](../README.md#models) [[Back to README]](../README.md)
+
+
+## locationsPost
+
+> StorageLocation locationsPost(newStorageLocation)
+
+Add new storage location
+
+### Example
+
+```ts
+import {
+  Configuration,
+  DefaultApi,
+} from '';
+import type { LocationsPostRequest } from '';
+
+async function example() {
+  console.log("🚀 Testing  SDK...");
+  const api = new DefaultApi();
+
+  const body = {
+    // NewStorageLocation |  (optional)
+    newStorageLocation: ...,
+  } satisfies LocationsPostRequest;
+
+  try {
+    const data = await api.locationsPost(body);
+    console.log(data);
+  } catch (error) {
+    console.error(error);
+  }
+}
+
+// Run the test
+example().catch(console.error);
+```
+
+### Parameters
+
+
+| Name | Type | Description  | Notes |
+|------------- | ------------- | ------------- | -------------|
+| **newStorageLocation** | [NewStorageLocation](NewStorageLocation.md) |  | [Optional] |
+
+### Return type
+
+[**StorageLocation**](StorageLocation.md)
+
+### Authorization
+
+No authorization required
+
+### HTTP request headers
+
+- **Content-Type**: `application/json`
+- **Accept**: `application/json`
+
+
+### HTTP response details
+| Status code | Description | Response headers |
+|-------------|-------------|------------------|
+| **201** | the newly created storage location |  -  |
+| **400** |  |  -  |
 
 [[Back to top]](#) [[Back to API list]](../README.md#api-endpoints) [[Back to Model list]](../README.md#models) [[Back to README]](../README.md)
 

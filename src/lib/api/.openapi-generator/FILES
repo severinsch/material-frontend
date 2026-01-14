@@ -1,3 +1,4 @@
+.openapi-generator-ignore
 apis/DefaultApi.ts
 apis/index.ts
 docs/BulkMaterial.md
@@ -16,6 +17,8 @@ docs/NewIndividualItem.md
 docs/NewIndividualMaterial.md
 docs/NewKit.md
 docs/NewKitMaterialsInner.md
+docs/NewStorageLocation.md
+docs/StorageLocation.md
 docs/TrackingType.md
 index.ts
 models/BulkMaterial.ts
@@ -33,6 +36,8 @@ models/NewIndividualItem.ts
 models/NewIndividualMaterial.ts
 models/NewKit.ts
 models/NewKitMaterialsInner.ts
+models/NewStorageLocation.ts
+models/StorageLocation.ts
 models/TrackingType.ts
 models/index.ts
 runtime.ts

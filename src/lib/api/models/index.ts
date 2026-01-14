@@ -15,4 +15,6 @@ export * from './NewIndividualItem';
 export * from './NewIndividualMaterial';
 export * from './NewKit';
 export * from './NewKitMaterialsInner';
+export * from './NewStorageLocation';
+export * from './StorageLocation';
 export * from './TrackingType';

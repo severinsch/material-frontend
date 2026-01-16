@@ -13,13 +13,20 @@
  */
 
 import { mapValues } from '../runtime';
-import type { NewKitMaterialsInner } from './NewKitMaterialsInner';
+import type { NewKitSubstitutionGroupsInner } from './NewKitSubstitutionGroupsInner';
 import {
-    NewKitMaterialsInnerFromJSON,
-    NewKitMaterialsInnerFromJSONTyped,
-    NewKitMaterialsInnerToJSON,
-    NewKitMaterialsInnerToJSONTyped,
-} from './NewKitMaterialsInner';
+    NewKitSubstitutionGroupsInnerFromJSON,
+    NewKitSubstitutionGroupsInnerFromJSONTyped,
+    NewKitSubstitutionGroupsInnerToJSON,
+    NewKitSubstitutionGroupsInnerToJSONTyped,
+} from './NewKitSubstitutionGroupsInner';
+import type { KitFixedMaterialsInner } from './KitFixedMaterialsInner';
+import {
+    KitFixedMaterialsInnerFromJSON,
+    KitFixedMaterialsInnerFromJSONTyped,
+    KitFixedMaterialsInnerToJSON,
+    KitFixedMaterialsInnerToJSONTyped,
+} from './KitFixedMaterialsInner';
 
 /**
  * 
@@ -41,10 +48,16 @@ export interface NewKit {
     description?: string;
     /**
      * 
-     * @type {Array<NewKitMaterialsInner>}
+     * @type {Array<KitFixedMaterialsInner>}
      * @memberof NewKit
      */
-    materials: Array<NewKitMaterialsInner>;
+    fixedMaterials: Array<KitFixedMaterialsInner>;
+    /**
+     * 
+     * @type {Array<NewKitSubstitutionGroupsInner>}
+     * @memberof NewKit
+     */
+    substitutionGroups: Array<NewKitSubstitutionGroupsInner>;
 }
 
 /**
@@ -52,7 +65,8 @@ export interface NewKit {
  */
 export function instanceOfNewKit(value: object): value is NewKit {
     if (!('name' in value) || value['name'] === undefined) return false;
-    if (!('materials' in value) || value['materials'] === undefined) return false;
+    if (!('fixedMaterials' in value) || value['fixedMaterials'] === undefined) return false;
+    if (!('substitutionGroups' in value) || value['substitutionGroups'] === undefined) return false;
     return true;
 }
 
@@ -68,7 +82,8 @@ export function NewKitFromJSONTyped(json: any, ignoreDiscriminator: boolean): Ne
         
         'name': json['name'],
         'description': json['description'] == null ? undefined : json['description'],
-        'materials': ((json['materials'] as Array<any>).map(NewKitMaterialsInnerFromJSON)),
+        'fixedMaterials': ((json['fixedMaterials'] as Array<any>).map(KitFixedMaterialsInnerFromJSON)),
+        'substitutionGroups': ((json['substitutionGroups'] as Array<any>).map(NewKitSubstitutionGroupsInnerFromJSON)),
     };
 }
 
@@ -85,7 +100,8 @@ export function NewKitToJSONTyped(value?: NewKit | null, ignoreDiscriminator: bo
         
         'name': value['name'],
         'description': value['description'],
-        'materials': ((value['materials'] as Array<any>).map(NewKitMaterialsInnerToJSON)),
+        'fixedMaterials': ((value['fixedMaterials'] as Array<any>).map(KitFixedMaterialsInnerToJSON)),
+        'substitutionGroups': ((value['substitutionGroups'] as Array<any>).map(NewKitSubstitutionGroupsInnerToJSON)),
     };
 }
 

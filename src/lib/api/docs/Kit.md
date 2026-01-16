@@ -9,7 +9,8 @@ Name | Type
 `id` | string
 `name` | string
 `description` | string
-`materials` | [Array&lt;KitMaterialsInner&gt;](KitMaterialsInner.md)
+`fixedMaterials` | [Array&lt;KitFixedMaterialsInner&gt;](KitFixedMaterialsInner.md)
+`substitutionGroups` | [Array&lt;KitSubstitutionGroupsInner&gt;](KitSubstitutionGroupsInner.md)
 
 ## Example
 
@@ -21,7 +22,8 @@ const example = {
   "id": null,
   "name": null,
   "description": null,
-  "materials": null,
+  "fixedMaterials": null,
+  "substitutionGroups": null,
 } satisfies Kit
 
 console.log(example)

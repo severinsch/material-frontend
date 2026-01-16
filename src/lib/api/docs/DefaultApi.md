@@ -14,7 +14,6 @@ All URIs are relative to *http://localhost*
 | [**itemsPost**](DefaultApi.md#itemspost) | **POST** /items | Create a new individual item |
 | [**kitsGet**](DefaultApi.md#kitsget) | **GET** /kits | Get all Kits |
 | [**kitsIdGet**](DefaultApi.md#kitsidget) | **GET** /kits/{id} | Get Kit by id |
-| [**kitsIdPut**](DefaultApi.md#kitsidput) | **PUT** /kits/{id} | Update Kit |
 | [**kitsPost**](DefaultApi.md#kitspost) | **POST** /kits | Add new Kit |
 | [**locationsGet**](DefaultApi.md#locationsget) | **GET** /locations | Get all Locations |
 | [**locationsIdDelete**](DefaultApi.md#locationsiddelete) | **DELETE** /locations/{id} | Delete storage location |
@@ -686,76 +685,6 @@ No authorization required
 | Status code | Description | Response headers |
 |-------------|-------------|------------------|
 | **200** | The Kit |  -  |
-| **400** |  |  -  |
-| **404** |  |  -  |
-
-[[Back to top]](#) [[Back to API list]](../README.md#api-endpoints) [[Back to Model list]](../README.md#models) [[Back to README]](../README.md)
-
-
-## kitsIdPut
-
-> Kit kitsIdPut(id, newKit)
-
-Update Kit
-
-### Example
-
-```ts
-import {
-  Configuration,
-  DefaultApi,
-} from '';
-import type { KitsIdPutRequest } from '';
-
-async function example() {
-  console.log("🚀 Testing  SDK...");
-  const api = new DefaultApi();
-
-  const body = {
-    // string | The id of the kit to update
-    id: id_example,
-    // NewKit |  (optional)
-    newKit: ...,
-  } satisfies KitsIdPutRequest;
-
-  try {
-    const data = await api.kitsIdPut(body);
-    console.log(data);
-  } catch (error) {
-    console.error(error);
-  }
-}
-
-// Run the test
-example().catch(console.error);
-```
-
-### Parameters
-
-
-| Name | Type | Description  | Notes |
-|------------- | ------------- | ------------- | -------------|
-| **id** | `string` | The id of the kit to update | [Defaults to `undefined`] |
-| **newKit** | [NewKit](NewKit.md) |  | [Optional] |
-
-### Return type
-
-[**Kit**](Kit.md)
-
-### Authorization
-
-No authorization required
-
-### HTTP request headers
-
-- **Content-Type**: `application/json`
-- **Accept**: `application/json`
-
-
-### HTTP response details
-| Status code | Description | Response headers |
-|-------------|-------------|------------------|
-| **200** | the updated kit |  -  |
 | **400** |  |  -  |
 | **404** |  |  -  |
 

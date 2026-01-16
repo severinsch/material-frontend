@@ -96,11 +96,6 @@ export interface KitsIdGetRequest {
     id: string;
 }
 
-export interface KitsIdPutRequest {
-    id: string;
-    newKit?: NewKit;
-}
-
 export interface KitsPostRequest {
     newKit?: NewKit;
 }
@@ -501,46 +496,6 @@ export class DefaultApi extends runtime.BaseAPI {
      */
     async kitsIdGet(requestParameters: KitsIdGetRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<Kit> {
         const response = await this.kitsIdGetRaw(requestParameters, initOverrides);
-        return await response.value();
-    }
-
-    /**
-     * Update Kit
-     */
-    async kitsIdPutRaw(requestParameters: KitsIdPutRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<runtime.ApiResponse<Kit>> {
-        if (requestParameters['id'] == null) {
-            throw new runtime.RequiredError(
-                'id',
-                'Required parameter "id" was null or undefined when calling kitsIdPut().'
-            );
-        }
-
-        const queryParameters: any = {};
-
-        const headerParameters: runtime.HTTPHeaders = {};
-
-        headerParameters['Content-Type'] = 'application/json';
-
-
-        let urlPath = `/kits/{id}`;
-        urlPath = urlPath.replace(`{${"id"}}`, encodeURIComponent(String(requestParameters['id'])));
-
-        const response = await this.request({
-            path: urlPath,
-            method: 'PUT',
-            headers: headerParameters,
-            query: queryParameters,
-            body: NewKitToJSON(requestParameters['newKit']),
-        }, initOverrides);
-
-        return new runtime.JSONApiResponse(response, (jsonValue) => KitFromJSON(jsonValue));
-    }
-
-    /**
-     * Update Kit
-     */
-    async kitsIdPut(requestParameters: KitsIdPutRequest, initOverrides?: RequestInit | runtime.InitOverrideFunction): Promise<Kit> {
-        const response = await this.kitsIdPutRaw(requestParameters, initOverrides);
         return await response.value();
     }
 

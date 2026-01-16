@@ -8,7 +8,8 @@ Name | Type
 ------------ | -------------
 `name` | string
 `description` | string
-`materials` | [Array&lt;NewKitMaterialsInner&gt;](NewKitMaterialsInner.md)
+`fixedMaterials` | [Array&lt;KitFixedMaterialsInner&gt;](KitFixedMaterialsInner.md)
+`substitutionGroups` | [Array&lt;NewKitSubstitutionGroupsInner&gt;](NewKitSubstitutionGroupsInner.md)
 
 ## Example
 
@@ -19,7 +20,8 @@ import type { NewKit } from ''
 const example = {
   "name": null,
   "description": null,
-  "materials": null,
+  "fixedMaterials": null,
+  "substitutionGroups": null,
 } satisfies NewKit
 
 console.log(example)

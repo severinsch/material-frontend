@@ -13,13 +13,20 @@
  */
 
 import { mapValues } from '../runtime';
-import type { KitMaterialsInner } from './KitMaterialsInner';
+import type { KitFixedMaterialsInner } from './KitFixedMaterialsInner';
 import {
-    KitMaterialsInnerFromJSON,
-    KitMaterialsInnerFromJSONTyped,
-    KitMaterialsInnerToJSON,
-    KitMaterialsInnerToJSONTyped,
-} from './KitMaterialsInner';
+    KitFixedMaterialsInnerFromJSON,
+    KitFixedMaterialsInnerFromJSONTyped,
+    KitFixedMaterialsInnerToJSON,
+    KitFixedMaterialsInnerToJSONTyped,
+} from './KitFixedMaterialsInner';
+import type { KitSubstitutionGroupsInner } from './KitSubstitutionGroupsInner';
+import {
+    KitSubstitutionGroupsInnerFromJSON,
+    KitSubstitutionGroupsInnerFromJSONTyped,
+    KitSubstitutionGroupsInnerToJSON,
+    KitSubstitutionGroupsInnerToJSONTyped,
+} from './KitSubstitutionGroupsInner';
 
 /**
  * 
@@ -47,10 +54,16 @@ export interface Kit {
     description?: string;
     /**
      * 
-     * @type {Array<KitMaterialsInner>}
+     * @type {Array<KitFixedMaterialsInner>}
      * @memberof Kit
      */
-    materials: Array<KitMaterialsInner>;
+    fixedMaterials: Array<KitFixedMaterialsInner>;
+    /**
+     * 
+     * @type {Array<KitSubstitutionGroupsInner>}
+     * @memberof Kit
+     */
+    substitutionGroups: Array<KitSubstitutionGroupsInner>;
 }
 
 /**
@@ -59,7 +72,8 @@ export interface Kit {
 export function instanceOfKit(value: object): value is Kit {
     if (!('id' in value) || value['id'] === undefined) return false;
     if (!('name' in value) || value['name'] === undefined) return false;
-    if (!('materials' in value) || value['materials'] === undefined) return false;
+    if (!('fixedMaterials' in value) || value['fixedMaterials'] === undefined) return false;
+    if (!('substitutionGroups' in value) || value['substitutionGroups'] === undefined) return false;
     return true;
 }
 
@@ -76,7 +90,8 @@ export function KitFromJSONTyped(json: any, ignoreDiscriminator: boolean): Kit {
         'id': json['id'],
         'name': json['name'],
         'description': json['description'] == null ? undefined : json['description'],
-        'materials': ((json['materials'] as Array<any>).map(KitMaterialsInnerFromJSON)),
+        'fixedMaterials': ((json['fixedMaterials'] as Array<any>).map(KitFixedMaterialsInnerFromJSON)),
+        'substitutionGroups': ((json['substitutionGroups'] as Array<any>).map(KitSubstitutionGroupsInnerFromJSON)),
     };
 }
 
@@ -94,7 +109,8 @@ export function KitToJSONTyped(value?: Kit | null, ignoreDiscriminator: boolean 
         'id': value['id'],
         'name': value['name'],
         'description': value['description'],
-        'materials': ((value['materials'] as Array<any>).map(KitMaterialsInnerToJSON)),
+        'fixedMaterials': ((value['fixedMaterials'] as Array<any>).map(KitFixedMaterialsInnerToJSON)),
+        'substitutionGroups': ((value['substitutionGroups'] as Array<any>).map(KitSubstitutionGroupsInnerToJSON)),
     };
 }
 

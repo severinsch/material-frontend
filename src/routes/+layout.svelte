@@ -11,14 +11,15 @@
 	<header class="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-[backdrop-filter]:bg-background/60">
 		<div class="container flex h-14 items-center gap-6 px-4">
 			<a href="/" class="flex items-center gap-2 font-semibold">
-				<Package class="h-5 w-5" />
-				<span>Scout Materials</span>
+				<img src="/logo.png" alt="Logo" class="h-6 w-6" />
+				<span>Material Management</span>
 			</a>
 			<nav class="flex items-center gap-4 text-sm">
 				<a
 					href="/"
-					class="transition-colors hover:text-foreground {$page.url.pathname === '/' ? 'text-foreground font-medium' : 'text-muted-foreground'}"
+					class="flex items-center gap-1 transition-colors hover:text-foreground {$page.url.pathname === '/' ? 'text-foreground font-medium' : 'text-muted-foreground'}"
 				>
+					<Package class="h-4 w-4" />
 					Materials
 				</a>
 				<a

@@ -1,5 +1,5 @@
 
-# NewKitMaterialsInner
+# KitSubstitutionGroupsInnerOptionsInner
 
 
 ## Properties
@@ -7,18 +7,20 @@
 Name | Type
 ------------ | -------------
 `materialId` | string
-`quantityRequired` | number
+`unitValue` | number
+`isPreferred` | boolean
 
 ## Example
 
 ```typescript
-import type { NewKitMaterialsInner } from ''
+import type { KitSubstitutionGroupsInnerOptionsInner } from ''
 
 // TODO: Update the object below with actual values
 const example = {
   "materialId": null,
-  "quantityRequired": null,
-} satisfies NewKitMaterialsInner
+  "unitValue": null,
+  "isPreferred": null,
+} satisfies KitSubstitutionGroupsInnerOptionsInner
 
 console.log(example)
 
@@ -27,7 +29,7 @@ const exampleJSON: string = JSON.stringify(example)
 console.log(exampleJSON)
 
 // Parse the JSON string back to an object
-const exampleParsed = JSON.parse(exampleJSON) as NewKitMaterialsInner
+const exampleParsed = JSON.parse(exampleJSON) as KitSubstitutionGroupsInnerOptionsInner
 console.log(exampleParsed)
 ```
 

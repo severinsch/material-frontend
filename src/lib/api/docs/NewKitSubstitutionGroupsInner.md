@@ -1,26 +1,30 @@
 
-# KitMaterialsInner
+# NewKitSubstitutionGroupsInner
 
 
 ## Properties
 
 Name | Type
 ------------ | -------------
-`materialId` | string
-`materialName` | string
-`quantityRequired` | number
+`name` | string
+`isOptional` | boolean
+`requiredUnits` | number
+`minRequiredUnits` | number
+`options` | [Array&lt;KitSubstitutionGroupsInnerOptionsInner&gt;](KitSubstitutionGroupsInnerOptionsInner.md)
 
 ## Example
 
 ```typescript
-import type { KitMaterialsInner } from ''
+import type { NewKitSubstitutionGroupsInner } from ''
 
 // TODO: Update the object below with actual values
 const example = {
-  "materialId": null,
-  "materialName": null,
-  "quantityRequired": null,
-} satisfies KitMaterialsInner
+  "name": null,
+  "isOptional": null,
+  "requiredUnits": null,
+  "minRequiredUnits": null,
+  "options": null,
+} satisfies NewKitSubstitutionGroupsInner
 
 console.log(example)
 
@@ -29,7 +33,7 @@ const exampleJSON: string = JSON.stringify(example)
 console.log(exampleJSON)
 
 // Parse the JSON string back to an object
-const exampleParsed = JSON.parse(exampleJSON) as KitMaterialsInner
+const exampleParsed = JSON.parse(exampleJSON) as NewKitSubstitutionGroupsInner
 console.log(exampleParsed)
 ```
 

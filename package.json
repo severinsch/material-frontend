@@ -12,7 +12,7 @@
 		"check:watch": "svelte-kit sync && svelte-check --tsconfig ./tsconfig.json --watch",
 		"format": "prettier --write .",
 		"lint": "prettier --check . && eslint .",
-		"api:generate": "openapi-generator-cli generate -i src/lib/api/open-api.json -g typescript-fetch -o src/lib/api/generated --additional-properties=typescriptThreePlus=true,supportsES6=true,modelPropertyNaming=original,useSingleRequestParameter=true"
+		"api:generate": "openapi-generator-cli generate -i src/lib/api/open-api.json -g typescript-fetch -o src/lib/api --additional-properties=typescriptThreePlus=true,supportsES6=true,modelPropertyNaming=original,useSingleRequestParameter=true"
 	},
 	"devDependencies": {
 		"@eslint/compat": "^1.4.0",

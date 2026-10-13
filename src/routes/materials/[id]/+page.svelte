@@ -3,15 +3,14 @@
 	import PencilIcon from '@lucide/svelte/icons/pencil';
 	import PlusIcon from '@lucide/svelte/icons/plus';
 	import Trash2Icon from '@lucide/svelte/icons/trash-2';
-	import TriangleAlertIcon from '@lucide/svelte/icons/triangle-alert';
 	import { api, mutate } from '#lib/api/index.js';
-	import { conditionLabels, formatDate, statusLabels, trackingTypeLabels } from '#lib/format.js';
+	import { formatDate, trackingTypeLabels } from '#lib/format.js';
 	import { Badge } from '#lib/components/ui/badge/index.js';
 	import { Button } from '#lib/components/ui/button/index.js';
 	import * as Table from '#lib/components/ui/table/index.js';
 	import ConfirmDelete from '#lib/components/ConfirmDelete.svelte';
 	import DamageDialog from '#lib/components/DamageDialog.svelte';
-	import ItemDialog from '#lib/components/ItemDialog.svelte';
+	import ItemTable from '#lib/components/ItemTable.svelte';
 	import MaterialDialog from '#lib/components/MaterialDialog.svelte';
 	import PurchaseDialog from '#lib/components/PurchaseDialog.svelte';
 
@@ -20,7 +19,6 @@
 	const identifiers = $derived(new Map(data.items.map((item) => [item.id, item.identifier])));
 
 	let materialDialog: MaterialDialog;
-	let itemDialog: ItemDialog;
 	let damageDialog: DamageDialog;
 	let purchaseDialog: PurchaseDialog;
 	let confirmDelete: ConfirmDelete;
@@ -70,84 +68,8 @@
 
 	{#if material.trackingType === 'INDIVIDUAL'}
 		<section class="space-y-2">
-			<div class="flex items-center justify-between">
-				<h2 class="text-lg font-semibold">Items</h2>
-				<Button size="sm" onclick={() => itemDialog.show()}><PlusIcon />Add item</Button>
-			</div>
-			<div class="rounded-md border">
-				<Table.Root>
-					<Table.Header>
-						<Table.Row>
-							<Table.Head>Identifier</Table.Head>
-							<Table.Head>Condition</Table.Head>
-							<Table.Head>Status</Table.Head>
-							<Table.Head class="hidden md:table-cell">Location</Table.Head>
-							<Table.Head class="hidden md:table-cell">Purchased</Table.Head>
-							<Table.Head class="w-28"></Table.Head>
-						</Table.Row>
-					</Table.Header>
-					<Table.Body>
-						{#each data.items as item (item.id)}
-							<Table.Row>
-								<Table.Cell class="font-medium">
-									{item.identifier}
-									{#if item.onLoan}<Badge variant="secondary">lent out</Badge>{/if}
-								</Table.Cell>
-								<Table.Cell>
-									<Badge variant={item.condition === 'POOR' ? 'destructive' : 'outline'}>
-										{conditionLabels[item.condition]}
-									</Badge>
-								</Table.Cell>
-								<Table.Cell>{statusLabels[item.status]}</Table.Cell>
-								<Table.Cell class="hidden md:table-cell">
-									{[item.storageLocation?.name, item.locationDetail].filter(Boolean).join(', ') ||
-										'—'}
-								</Table.Cell>
-								<Table.Cell class="hidden md:table-cell">{formatDate(item.purchaseDate)}</Table.Cell
-								>
-								<Table.Cell class="text-right">
-									<Button
-										variant="ghost"
-										size="icon-sm"
-										aria-label="Report damage"
-										onclick={() => damageDialog.show(item.id)}
-									>
-										<TriangleAlertIcon />
-									</Button>
-									<Button
-										variant="ghost"
-										size="icon-sm"
-										aria-label="Edit"
-										onclick={() => itemDialog.show(item)}
-									>
-										<PencilIcon />
-									</Button>
-									<Button
-										variant="ghost"
-										size="icon-sm"
-										aria-label="Delete"
-										onclick={() =>
-											confirmDelete.show(`item "${item.identifier}"`, () =>
-												mutate(
-													api.DELETE('/items/{id}', path(item.id)),
-													`Deleted ${item.identifier}`
-												)
-											)}
-									>
-										<Trash2Icon />
-									</Button>
-								</Table.Cell>
-							</Table.Row>
-						{:else}
-							<Table.Row>
-								<Table.Cell colspan={6} class="py-6 text-center text-muted-foreground"
-									>No items yet.</Table.Cell
-								>
-							</Table.Row>
-						{/each}
-					</Table.Body>
-				</Table.Root>
-			</div>
+			<h2 class="text-lg font-semibold">Items</h2>
+			<ItemTable materialId={material.id} items={data.items} locations={data.locations} />
 			<p class="text-sm text-muted-foreground">
 				Items with damage reports or loans can't be deleted. Set their status to "Decommissioned"
 				instead.
@@ -266,7 +188,6 @@
 </div>
 
 <MaterialDialog bind:this={materialDialog} locations={data.locations} />
-<ItemDialog bind:this={itemDialog} materialId={material.id} locations={data.locations} />
 <DamageDialog bind:this={damageDialog} />
 <PurchaseDialog bind:this={purchaseDialog} materialId={material.id} />
 <ConfirmDelete bind:this={confirmDelete} />

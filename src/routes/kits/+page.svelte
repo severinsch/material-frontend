@@ -1,12 +1,13 @@
 <script lang="ts">
 	import CheckIcon from '@lucide/svelte/icons/check';
+	import ChevronRightIcon from '@lucide/svelte/icons/chevron-right';
 	import CopyIcon from '@lucide/svelte/icons/copy';
 	import MinusIcon from '@lucide/svelte/icons/minus';
 	import PencilIcon from '@lucide/svelte/icons/pencil';
 	import PlusIcon from '@lucide/svelte/icons/plus';
+	import Trash2Icon from '@lucide/svelte/icons/trash-2';
 	import { SvelteMap, SvelteSet } from 'svelte/reactivity';
 	import { toast } from 'svelte-sonner';
-	import type { KitGroup } from '#lib/api/index.js';
 	import { allocate } from '#lib/kits/allocate.js';
 	import { availableNow } from '#lib/settings.svelte.js';
 	import { Badge } from '#lib/components/ui/badge/index.js';
@@ -46,12 +47,18 @@
 	});
 	const hasShortages = $derived(needs.some((need) => need.missing > 0));
 
+	function availableOf(materialId: string) {
+		const material = materials.get(materialId);
+		return material ? availableNow(material) : 0;
+	}
+
 	function nameOf(materialId: string) {
 		return materials.get(materialId)?.name ?? 'Unknown material';
 	}
 
-	function groupLabel(group: KitGroup) {
-		return group.name ?? group.options.map((option) => nameOf(option.materialId)).join(' / ');
+	/** Pieces of a material with [unitValue] needed to fill [units] in one kit. */
+	function piecesFor(units: number, unitValue: number) {
+		return Math.ceil(units / unitValue);
 	}
 
 	function setQuantity(kitId: string, quantity: number) {
@@ -80,6 +87,15 @@
 	}
 </script>
 
+{#snippet availability(materialId: string, needed = 0)}
+	{@const available = availableOf(materialId)}
+	<span
+		class="text-xs tabular-nums {needed > available ? 'text-destructive' : 'text-muted-foreground'}"
+	>
+		{available} available
+	</span>
+{/snippet}
+
 <div class="space-y-4">
 	<div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
 		<div>
@@ -107,7 +123,9 @@
 						<ul class="space-y-2 text-sm">
 							{#each kit.groups as group, index (index)}
 								{@const key = `${kit.id}/${index}`}
-								<li>
+								{@const excluded = group.isOptional && !includedGroups.has(key)}
+								{@const [single] = group.options.length === 1 ? group.options : []}
+								<li class={excluded ? 'text-muted-foreground' : ''}>
 									<div class="flex items-center gap-2">
 										{#if group.isOptional}
 											<Checkbox
@@ -116,22 +134,42 @@
 												onCheckedChange={(checked) => toggleGroup(key, checked)}
 											/>
 										{/if}
-										<label
-											for={key}
-											class={group.isOptional && !includedGroups.has(key)
-												? 'text-muted-foreground'
-												: ''}
-										>
-											{group.requiredUnits}× {groupLabel(group)}
+										<label for={key} class="flex-1">
+											{#if single}
+												{piecesFor(group.requiredUnits, single.unitValue)}× {nameOf(
+													single.materialId
+												)}
+												{#if group.name}<span class="text-muted-foreground">({group.name})</span
+													>{/if}
+											{:else}
+												{group.name ?? 'Alternatives'}
+											{/if}
 										</label>
 										{#if group.isOptional}<Badge variant="outline">optional</Badge>{/if}
+										{#if single}
+											{@render availability(
+												single.materialId,
+												piecesFor(group.requiredUnits, single.unitValue)
+											)}
+										{:else}
+											<span class="text-xs text-muted-foreground">{group.requiredUnits} units</span>
+										{/if}
 									</div>
-									{#if group.options.length > 1 || group.options[0].unitValue > 1}
-										<ul class="mt-1 ml-3 border-l pl-2 text-xs text-muted-foreground">
-											{#each group.options.toSorted((a, b) => a.priority - b.priority) as option (option.materialId)}
-												<li>
-													{nameOf(option.materialId)}
-													{#if option.unitValue > 1}(counts {option.unitValue}×){/if}
+									{#if !single}
+										<ul class="mt-1 ml-1 space-y-0.5 border-l pl-2 text-xs">
+											{#each group.options.toSorted((a, b) => a.priority - b.priority) as option, rank (option.materialId)}
+												<li class="flex items-center gap-1">
+													{#if rank === 0}
+														<ChevronRightIcon class="size-3 text-primary" aria-label="preferred" />
+													{:else}
+														<span class="w-3"></span>
+													{/if}
+													<span class="flex-1">
+														{piecesFor(group.requiredUnits, option.unitValue)}× {nameOf(
+															option.materialId
+														)}
+													</span>
+													{@render availability(option.materialId)}
 												</li>
 											{/each}
 										</ul>
@@ -183,13 +221,50 @@
 			{#if selectedKits.length === 0}
 				<p class="text-sm text-muted-foreground">Add kits to see the materials they need.</p>
 			{:else}
+				<Card.Root>
+					<Card.Header>
+						<Card.Title>Selected kits</Card.Title>
+					</Card.Header>
+					<Card.Content>
+						<ul class="space-y-1 text-sm">
+							{#each selectedKits as kit (kit.id)}
+								{@const quantity = quantities.get(kit.id) ?? 0}
+								<li class="flex items-center gap-1">
+									<span class="flex-1">{kit.name}</span>
+									<Button
+										variant="ghost"
+										size="icon-sm"
+										aria-label="Fewer"
+										onclick={() => setQuantity(kit.id, quantity - 1)}
+									>
+										<MinusIcon />
+									</Button>
+									<span class="w-6 text-center tabular-nums">{quantity}</span>
+									<Button
+										variant="ghost"
+										size="icon-sm"
+										aria-label="More"
+										onclick={() => setQuantity(kit.id, quantity + 1)}
+									>
+										<PlusIcon />
+									</Button>
+									<Button
+										variant="ghost"
+										size="icon-sm"
+										aria-label="Remove from list"
+										onclick={() => setQuantity(kit.id, 0)}
+									>
+										<Trash2Icon />
+									</Button>
+								</li>
+							{/each}
+						</ul>
+					</Card.Content>
+				</Card.Root>
+
 				<Card.Root class={hasShortages ? 'border-destructive' : ''}>
 					<Card.Header>
-						<Card.Title
-							>{selectedKits
-								.map((kit) => `${quantities.get(kit.id)}× ${kit.name}`)
-								.join(', ')}</Card.Title
-						>
+						<Card.Title>Materials needed</Card.Title>
 						{#if hasShortages}
 							<Card.Description class="text-destructive">Some materials are short.</Card.Description
 							>

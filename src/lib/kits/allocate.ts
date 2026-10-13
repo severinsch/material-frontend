@@ -19,9 +19,11 @@ export interface MaterialNeed {
  * Distributes the available stock over the groups of the selected kits.
  *
  * Groups with a single option are served first, since they can't fall back to anything else. Every group then takes
- * its options in priority order (lowest first). If the stock runs out, the missing pieces are counted on the group's
- * preferred option, so the shortage shows up there. This is a greedy approach: it doesn't search for the best
- * possible combination, which is fine for the small number of interchangeable materials in practice.
+ * its options in priority order (lowest first): first only whole pieces that fit into the remaining units, then
+ * rounding up to cover the rest, so a large piece isn't used where smaller ones fit exactly. If the stock runs out,
+ * the missing pieces are counted on the group's preferred option, so the shortage shows up there. This is a greedy
+ * approach: it doesn't search for the best possible combination, which is fine for the small number of
+ * interchangeable materials in practice.
  *
  * @param stock usable pieces per material id
  */
@@ -50,16 +52,18 @@ export function allocate(
 
 	for (const { kitId, units, options } of demands) {
 		let remaining = units;
-		for (const option of options) {
-			if (remaining <= 0) break;
-			const pieces = Math.min(
-				Math.ceil(remaining / option.unitValue),
-				left.get(option.materialId) ?? 0
-			);
-			if (pieces <= 0) continue;
-			left.set(option.materialId, (left.get(option.materialId) ?? 0) - pieces);
-			take(option.materialId, kitId, pieces);
-			remaining -= pieces * option.unitValue;
+		for (const round of [Math.floor, Math.ceil]) {
+			for (const option of options) {
+				if (remaining <= 0) break;
+				const pieces = Math.min(
+					round(remaining / option.unitValue),
+					left.get(option.materialId) ?? 0
+				);
+				if (pieces <= 0) continue;
+				left.set(option.materialId, (left.get(option.materialId) ?? 0) - pieces);
+				take(option.materialId, kitId, pieces);
+				remaining -= pieces * option.unitValue;
+			}
 		}
 		if (remaining > 0) {
 			const [preferred] = options;
@@ -69,7 +73,7 @@ export function allocate(
 
 	return [...needs].map(([materialId, byKit]) => ({
 		materialId,
-		required: byKit.values().reduce((sum, pieces) => sum + pieces, 0),
+		required: [...byKit.values()].reduce((sum, pieces) => sum + pieces, 0),
 		available: stock.get(materialId) ?? 0,
 		byKit: [...byKit].map(([kitId, quantity]) => ({ kitId, quantity }))
 	}));

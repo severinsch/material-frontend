@@ -66,5 +66,9 @@ docker build -t material-frontend .
 docker run -p 3000:3000 -e API_URL=http://<api-host>:8080 material-frontend
 ```
 
+Behind nginx (as in the VPS setup), only route the domain to this container, not `/api` to the backend: the
+frontend's own `/api` proxy is where authentication will go. The server assumes `https`, which matches nginx
+terminating TLS.
+
 When running next to the API's compose stack, join its network and use the service name, e.g.
 `docker run --network material-api_default -p 3000:3000 -e API_URL=http://api:8080 material-frontend`.

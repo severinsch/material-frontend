@@ -50,6 +50,18 @@ describe('allocate', () => {
 		});
 	});
 
+	it("doesn't use a large piece where smaller ones fit exactly", () => {
+		const options: [string, number?][] = [['halbdach', 3], ['kohtenblatt']];
+		const a = kit('a', group(options, 4));
+		const b = kit('b', group(options, 3));
+		expect(required([select(a), select(b)], { halbdach: 2, kohtenblatt: 1 })).toEqual({
+			halbdach: 2,
+			kohtenblatt: 1
+		});
+		// Without smaller pieces, the remainder is still covered by rounding up.
+		expect(required([select(a)], { halbdach: 2 })).toEqual({ halbdach: 2 });
+	});
+
 	it('counts missing pieces on the preferred option', () => {
 		const roof = kit('jurte', group([['halbdach', 3], ['kohtenblatt']], 6));
 		const [need] = allocate([select(roof)], new Map([['halbdach', 1]]));

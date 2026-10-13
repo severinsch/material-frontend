@@ -5,6 +5,7 @@
 	import PencilIcon from '@lucide/svelte/icons/pencil';
 	import PlusIcon from '@lucide/svelte/icons/plus';
 	import { SvelteMap, SvelteSet } from 'svelte/reactivity';
+	import { toast } from 'svelte-sonner';
 	import type { KitGroup } from '#lib/api/index.js';
 	import { allocate } from '#lib/kits/allocate.js';
 	import { availableNow } from '#lib/settings.svelte.js';
@@ -31,7 +32,7 @@
 			kit,
 			quantity: quantities.get(kit.id)!,
 			includedGroups: new Set(
-				kit.groups.keys().filter((index) => includedGroups.has(`${kit.id}/${index}`))
+				kit.groups.flatMap((_, index) => (includedGroups.has(`${kit.id}/${index}`) ? [index] : []))
 			)
 		}));
 		const stock = new Map(data.materials.map((material) => [material.id, availableNow(material)]));
@@ -64,9 +65,16 @@
 	}
 
 	async function copyList() {
-		await navigator.clipboard.writeText(
-			needs.map((need) => `${need.required}x ${need.name}`).join('\n')
+		const text = needs.map((need) => `${need.required}x ${need.name}`).join('\n');
+		// The clipboard API only exists on HTTPS (and localhost).
+		const success = await navigator.clipboard?.writeText(text).then(
+			() => true,
+			() => false
 		);
+		if (!success) {
+			toast.error("Couldn't copy the list. Copying only works over HTTPS.");
+			return;
+		}
 		copied = true;
 		setTimeout(() => (copied = false), 2000);
 	}

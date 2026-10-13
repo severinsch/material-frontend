@@ -7,7 +7,7 @@
 		type Material,
 		type NewLoan
 	} from '#lib/api/index.js';
-	import { orNull, today } from '#lib/format.js';
+	import { orNull, statusLabels, today } from '#lib/format.js';
 	import { Checkbox } from '#lib/components/ui/checkbox/index.js';
 	import { Input } from '#lib/components/ui/input/index.js';
 	import { Label } from '#lib/components/ui/label/index.js';
@@ -18,10 +18,12 @@
 
 	let open = $state(false);
 	let id = $state<string | null>(null);
+	/** The items of the edited loan as saved, which stay listed even when unchecked or no longer active. */
+	let ownItemIds = $state<string[]>([]);
 	let form = $state(formOf());
 
 	const bulkMaterials = $derived(materials.filter((m) => m.trackingType === 'BULK'));
-	/** Items that can be lent: active and not on another loan. */
+	/** Items that can be lent (active and not on another loan), plus the loan's own items. */
 	const itemsByMaterial = $derived(
 		materials
 			.filter((m) => m.trackingType === 'INDIVIDUAL')
@@ -30,8 +32,7 @@
 				items: items.filter(
 					(item) =>
 						item.materialId === material.id &&
-						item.status === 'ACTIVE' &&
-						(!item.onLoan || form.itemIds.includes(item.id))
+						(ownItemIds.includes(item.id) || (item.status === 'ACTIVE' && !item.onLoan))
 				)
 			}))
 			.filter(({ items }) => items.length > 0)
@@ -54,6 +55,7 @@
 	/** Opens the dialog to edit [loan], or to record a new one. */
 	export function show(loan?: Loan) {
 		id = loan?.id ?? null;
+		ownItemIds = loan?.itemIds ?? [];
 		form = formOf(loan);
 		open = true;
 	}
@@ -114,7 +116,12 @@
 								checked={form.itemIds.includes(item.id)}
 								onCheckedChange={(checked) => toggleItem(item.id, checked)}
 							/>
-							<Label for="loan-item-{item.id}" class="font-normal">{item.identifier}</Label>
+							<Label for="loan-item-{item.id}" class="font-normal">
+								{item.identifier}
+								{#if item.status !== 'ACTIVE'}
+									<span class="text-destructive">({statusLabels[item.status]})</span>
+								{/if}
+							</Label>
 						</div>
 					{/each}
 				</div>

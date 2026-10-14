@@ -1268,7 +1268,6 @@ export interface paths {
             };
         };
         put?: never;
-        /** Record a loan. */
         post: {
             parameters: {
                 query?: never;
@@ -1653,8 +1652,8 @@ export interface components {
             description?: string | null;
             groups: components["schemas"]["NewKitGroup"][];
         };
-        /** BulkLoanLine */
-        BulkLoanLine: {
+        /** LoanQuantity */
+        LoanQuantity: {
             /** Format: uuid */
             materialId: string;
             quantity: number;
@@ -1672,7 +1671,7 @@ export interface components {
             returnedAt?: string | null;
             note?: string | null;
             itemIds: string[];
-            bulkMaterials: components["schemas"]["BulkLoanLine"][];
+            materials: components["schemas"]["LoanQuantity"][];
         };
         /** NewLoan */
         NewLoan: {
@@ -1685,7 +1684,7 @@ export interface components {
             returnedAt?: string | null;
             note?: string | null;
             itemIds?: string[];
-            bulkMaterials?: components["schemas"]["BulkLoanLine"][];
+            materials?: components["schemas"]["LoanQuantity"][];
         };
     };
     responses: never;

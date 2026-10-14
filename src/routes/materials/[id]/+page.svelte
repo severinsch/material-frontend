@@ -5,6 +5,7 @@
 	import Trash2Icon from '@lucide/svelte/icons/trash-2';
 	import { api, mutate, type DamageReport, type Purchase } from '#lib/api/index.js';
 	import { formatDate, formatPrice, trackingTypeLabels } from '#lib/format.js';
+	import { isAvailableItem } from '#lib/loans.js';
 	import { availableNow, settings } from '#lib/settings.svelte.js';
 	import { Badge } from '#lib/components/ui/badge/index.js';
 	import { Button } from '#lib/components/ui/button/index.js';
@@ -25,6 +26,10 @@
 		data.damages.toSorted((a, b) => Number(a.resolvedAt != null) - Number(b.resolvedAt != null))
 	);
 	const openDamages = $derived(damages.filter((report) => !report.resolvedAt).length);
+	/** Lent pieces of an individual material that were lent as a quantity, so no item is marked as lent. */
+	const lentByQuantity = $derived(
+		material.loanedCount - data.items.filter((item) => item.onLoan && isAvailableItem(item)).length
+	);
 
 	const counts = $derived([
 		{
@@ -32,7 +37,14 @@
 			value: material.availableCount,
 			hint: 'einsatzbereit, auch ausgeliehene'
 		},
-		{ label: 'Ausgeliehen', value: material.loanedCount },
+		{
+			label: 'Ausgeliehen',
+			value: material.loanedCount,
+			hint:
+				material.trackingType === 'INDIVIDUAL' && lentByQuantity > 0
+					? `davon ${lentByQuantity} nur als Anzahl`
+					: undefined
+		},
 		{
 			label: 'Verfügbar',
 			value: availableNow(material),

@@ -1,5 +1,6 @@
 import type { IndividualItem, Kit, Material } from '#lib/api/index.js';
 import type { GroupShortage } from './allocate.js';
+import { isAvailableItem } from '#lib/loans.js';
 
 // Helpers for the packing list on the kits page: its state in the URL, where to find materials, and readable
 // shortages.
@@ -60,10 +61,7 @@ export function placeOf(material: Material, items: IndividualItem[], skipLoaned:
 	}
 	const usable = items.filter(
 		(item) =>
-			item.materialId === material.id &&
-			item.status === 'ACTIVE' &&
-			item.condition !== 'POOR' &&
-			!(skipLoaned && item.onLoan)
+			item.materialId === material.id && isAvailableItem(item) && !(skipLoaned && item.onLoan)
 	);
 	const byLocation = Map.groupBy(usable, (item) => item.storageLocation?.name ?? NO_LOCATION);
 	if (byLocation.size === 0) return { location: NO_LOCATION, detail: '' };

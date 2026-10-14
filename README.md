@@ -10,8 +10,9 @@ groups keep track of their material, plan what to pack for camps and record what
 - **Kits and packing list:** define kits (e.g. "Jurte") from parts with interchangeable materials and optional parts.
   Select kits to see which materials to pack, where they are stored and what is short. The selection is kept in the
   URL (shareable), and the list can be printed or copied.
-- **Loans:** a simple loan book of what was lent to whom, and when it came back. Lent out pieces can optionally count
-  as unavailable.
+- **Loans:** a simple loan book of what was lent to whom, and when it came back. Material is lent by quantity
+  ("4 Kohtenblätter"); for individual materials specific items can be picked instead where it matters. Lent out pieces
+  can optionally count as unavailable.
 - **Locations:** where material is stored, and what is stored where.
 - **Overview:** overdue and open loans, items that need repair and open damage reports.
 

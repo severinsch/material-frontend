@@ -3,7 +3,6 @@
 	import ArrowUpIcon from '@lucide/svelte/icons/arrow-up';
 	import ChevronDownIcon from '@lucide/svelte/icons/chevron-down';
 	import ChevronRightIcon from '@lucide/svelte/icons/chevron-right';
-	import PencilIcon from '@lucide/svelte/icons/pencil';
 	import PlusIcon from '@lucide/svelte/icons/plus';
 	import SearchIcon from '@lucide/svelte/icons/search';
 	import Trash2Icon from '@lucide/svelte/icons/trash-2';
@@ -19,6 +18,7 @@
 	import ItemTable from '#lib/components/ItemTable.svelte';
 	import LoanedToggle from '#lib/components/LoanedToggle.svelte';
 	import MaterialDialog from '#lib/components/MaterialDialog.svelte';
+	import RowActions from '#lib/components/RowActions.svelte';
 
 	let { data } = $props();
 
@@ -84,10 +84,10 @@
 	}
 
 	function remove(material: Material) {
-		confirmDelete.show(`material "${material.name}"`, () =>
+		confirmDelete.show(`Material „${material.name}“`, () =>
 			mutate(
 				api.DELETE('/materials/{id}', { params: { path: { id: material.id } } }),
-				`Deleted ${material.name}`
+				`${material.name} gelöscht`
 			)
 		);
 	}
@@ -106,8 +106,8 @@
 
 <div class="space-y-4">
 	<div class="flex items-center justify-between gap-4">
-		<h1 class="text-2xl font-bold tracking-tight">Materials</h1>
-		<Button onclick={() => materialDialog.show()}><PlusIcon />Add material</Button>
+		<h1 class="text-2xl font-bold tracking-tight">Materialien</h1>
+		<Button onclick={() => materialDialog.show()}><PlusIcon />Material anlegen</Button>
 	</div>
 
 	<div class="flex flex-col gap-4 sm:flex-row sm:items-center">
@@ -115,7 +115,8 @@
 			<SearchIcon class="absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
 			<Input
 				type="search"
-				placeholder="Search name, category, description, location…"
+				aria-label="Materialien durchsuchen"
+				placeholder="Name, Kategorie, Beschreibung, Lagerort…"
 				class="pl-9"
 				bind:value={query}
 			/>
@@ -127,23 +128,23 @@
 		<Table.Root>
 			<Table.Header>
 				<Table.Row>
-					<Table.Head class="w-8"></Table.Head>
+					<Table.Head class="w-8"><span class="sr-only">Gegenstände</span></Table.Head>
 					<Table.Head>{@render sortable('name', 'Name')}</Table.Head>
 					<Table.Head class="hidden md:table-cell"
-						>{@render sortable('category', 'Category')}</Table.Head
+						>{@render sortable('category', 'Kategorie')}</Table.Head
 					>
-					<Table.Head class="hidden lg:table-cell">Tracking</Table.Head>
+					<Table.Head class="hidden lg:table-cell">Erfassung</Table.Head>
 					<Table.Head class="hidden sm:table-cell"
-						>{@render sortable('location', 'Location')}</Table.Head
+						>{@render sortable('location', 'Lagerort')}</Table.Head
 					>
-					<Table.Head class="text-right">{@render sortable('available', 'Available')}</Table.Head>
+					<Table.Head class="text-right">{@render sortable('available', 'Verfügbar')}</Table.Head>
 					<Table.Head class="hidden text-right sm:table-cell">
-						{@render sortable('damaged', 'Damaged')}
+						{@render sortable('damaged', 'Beschädigt')}
 					</Table.Head>
 					<Table.Head class="hidden text-right sm:table-cell">
-						{@render sortable('loaned', 'Lent out')}
+						{@render sortable('loaned', 'Ausgeliehen')}
 					</Table.Head>
-					<Table.Head class="w-20"></Table.Head>
+					<Table.Head class="w-20"><span class="sr-only">Aktionen</span></Table.Head>
 				</Table.Row>
 			</Table.Header>
 			<Table.Body>
@@ -155,7 +156,9 @@
 								<Button
 									variant="ghost"
 									size="icon-sm"
-									aria-label={isOpen ? 'Hide items' : 'Show items'}
+									aria-label={isOpen
+										? `Gegenstände von ${material.name} ausblenden`
+										: `Gegenstände von ${material.name} anzeigen`}
 									aria-expanded={isOpen}
 									onclick={() => toggle(material.id)}
 								>
@@ -190,30 +193,26 @@
 						<Table.Cell class="hidden text-right tabular-nums sm:table-cell">
 							{material.loanedCount}
 						</Table.Cell>
-						<Table.Cell class="text-right whitespace-nowrap">
-							<Button
-								variant="ghost"
-								size="icon-sm"
-								aria-label="Edit"
-								onclick={() => materialDialog.show(material)}
-							>
-								<PencilIcon />
-							</Button>
-							<Button
-								variant="ghost"
-								size="icon-sm"
-								aria-label="Delete"
-								onclick={() => remove(material)}
-							>
-								<Trash2Icon />
-							</Button>
+						<Table.Cell class="text-right">
+							<RowActions
+								name={material.name}
+								onedit={() => materialDialog.show(material)}
+								actions={[
+									{
+										label: 'Löschen',
+										icon: Trash2Icon,
+										destructive: true,
+										onselect: () => remove(material)
+									}
+								]}
+							/>
 						</Table.Cell>
 					</Table.Row>
 					{#if isOpen}
 						<Table.Row class="hover:bg-transparent">
 							<Table.Cell colspan={9} class="bg-muted/30 p-3 whitespace-normal sm:pl-10">
 								<ItemTable
-									materialId={material.id}
+									{material}
 									items={itemsByMaterial[material.id] ?? []}
 									locations={data.locations}
 								/>
@@ -223,7 +222,7 @@
 				{:else}
 					<Table.Row>
 						<Table.Cell colspan={9} class="py-8 text-center text-muted-foreground">
-							{query ? `No materials match "${query}".` : 'No materials yet.'}
+							{query ? `Keine Materialien zu „${query}“ gefunden.` : 'Noch keine Materialien.'}
 						</Table.Cell>
 					</Table.Row>
 				{/each}

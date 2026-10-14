@@ -5,7 +5,7 @@
 	let name = $state('');
 	let ondelete = $state<() => Promise<boolean>>(async () => false);
 
-	/** Asks whether to delete [what] (e.g. `material "Hering"`) and runs [action] if confirmed. */
+	/** Asks whether to delete [what] (e.g. `Material „Hering“`) and runs [action] if confirmed. */
 	export function show(what: string, action: () => Promise<boolean>) {
 		name = what;
 		ondelete = action;
@@ -15,9 +15,9 @@
 
 <FormDialog
 	bind:open
-	title="Delete {name}?"
-	description="This can't be undone."
-	submitLabel="Delete"
+	title="{name} löschen?"
+	description="Das kann nicht rückgängig gemacht werden."
+	submitLabel="Löschen"
 	destructive
 	onsubmit={() => ondelete()}
 />

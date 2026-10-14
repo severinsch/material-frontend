@@ -8,7 +8,7 @@
 		open = $bindable(false),
 		title,
 		description,
-		submitLabel = 'Save',
+		submitLabel = 'Speichern',
 		destructive = false,
 		onsubmit,
 		children
@@ -48,7 +48,7 @@
 			{@render children?.()}
 			<Dialog.Footer>
 				<Button variant="outline" type="button" onclick={() => (open = false)} disabled={saving}>
-					Cancel
+					Abbrechen
 				</Button>
 				<Button type="submit" variant={destructive ? 'destructive' : 'default'} disabled={saving}>
 					{#if saving}<LoaderIcon class="animate-spin" />{/if}

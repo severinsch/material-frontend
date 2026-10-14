@@ -4,5 +4,5 @@
 	let { data } = $props();
 </script>
 
-<h1 class="mb-4 text-2xl font-bold tracking-tight">New kit</h1>
+<h1 class="mb-4 text-2xl font-bold tracking-tight">Neues Set</h1>
 <KitForm materials={data.materials} />

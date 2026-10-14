@@ -4,6 +4,6 @@
 </script>
 
 <Alert.Root variant="destructive">
-	<Alert.Title>Error {page.status}</Alert.Title>
+	<Alert.Title>Fehler {page.status}</Alert.Title>
 	<Alert.Description>{page.error?.message}</Alert.Description>
 </Alert.Root>

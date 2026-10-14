@@ -28,7 +28,7 @@ function select(kit: Kit, quantity = 1, includedGroups: number[] = []): KitSelec
 
 function required(selections: KitSelection[], stock: Record<string, number>) {
 	return Object.fromEntries(
-		allocate(selections, new Map(Object.entries(stock))).map((need) => [
+		allocate(selections, new Map(Object.entries(stock))).needs.map((need) => [
 			need.materialId,
 			need.required
 		])
@@ -64,7 +64,9 @@ describe('allocate', () => {
 
 	it('counts missing pieces on the preferred option', () => {
 		const roof = kit('jurte', group([['halbdach', 3], ['kohtenblatt']], 6));
-		const [need] = allocate([select(roof)], new Map([['halbdach', 1]]));
+		const {
+			needs: [need]
+		} = allocate([select(roof)], new Map([['halbdach', 1]]));
 		expect(need).toEqual({
 			materialId: 'halbdach',
 			required: 2,
@@ -94,10 +96,37 @@ describe('allocate', () => {
 	it('breaks needs down by kit', () => {
 		const a = kit('a', group([['hering']], 10));
 		const b = kit('b', group([['hering']], 20));
-		const [need] = allocate([select(a), select(b)], new Map([['hering', 100]]));
+		const {
+			needs: [need]
+		} = allocate([select(a), select(b)], new Map([['hering', 100]]));
 		expect(need.byKit).toEqual([
 			{ kitId: 'a', quantity: 10 },
 			{ kitId: 'b', quantity: 20 }
 		]);
+	});
+
+	it('reports missing units per group', () => {
+		const jurte = kit(
+			'jurte',
+			group([['hering']], 30),
+			group([['halbdach', 3], ['kohtenblatt']], 6),
+			group([['fenster']], 8, true)
+		);
+		const { shortages } = allocate(
+			[select(jurte, 2, [2])],
+			new Map([
+				['hering', 60],
+				['halbdach', 2],
+				['kohtenblatt', 1],
+				['fenster', 16]
+			])
+		);
+		// 12 roof units needed, 2 halves and 1 sheet fill 7.
+		expect(shortages).toEqual([{ kitId: 'jurte', groupIndex: 1, missingUnits: 5 }]);
+	});
+
+	it('reports no shortages when the stock suffices', () => {
+		const jurte = kit('jurte', group([['hering']], 30));
+		expect(allocate([select(jurte)], new Map([['hering', 30]])).shortages).toEqual([]);
 	});
 });

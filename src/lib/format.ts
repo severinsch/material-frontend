@@ -1,22 +1,22 @@
 import type { ItemCondition, ItemStatus, Material, StorageLocation } from '#lib/api/index.js';
 
 export const conditionLabels: Record<ItemCondition, string> = {
-	NEW: 'New',
-	GOOD: 'Good',
-	FAIR: 'Fair',
-	POOR: 'Poor'
+	NEW: 'Neu',
+	GOOD: 'Gut',
+	FAIR: 'Gebraucht',
+	POOR: 'Schlecht'
 };
 
 export const statusLabels: Record<ItemStatus, string> = {
-	ACTIVE: 'Active',
-	IN_REPAIR: 'In repair',
-	LOST: 'Lost',
-	DECOMMISSIONED: 'Decommissioned'
+	ACTIVE: 'Aktiv',
+	IN_REPAIR: 'In Reparatur',
+	LOST: 'Verloren',
+	DECOMMISSIONED: 'Ausgemustert'
 };
 
 export const trackingTypeLabels: Record<Material['trackingType'], string> = {
-	BULK: 'Bulk',
-	INDIVIDUAL: 'Individual'
+	BULK: 'Nach Menge',
+	INDIVIDUAL: 'Einzeln'
 };
 
 /** Select options for a label record. */
@@ -30,6 +30,7 @@ const dateFormat = new Intl.DateTimeFormat('de-DE', {
 	dateStyle: 'medium'
 });
 const isoDateFormat = new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Berlin' }); // YYYY-MM-DD
+const priceFormat = new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' });
 
 /** Formats a date (`2026-10-01`) or a timestamp for display. */
 export function formatDate(value: string | null | undefined): string {
@@ -38,6 +39,11 @@ export function formatDate(value: string | null | undefined): string {
 	return value.length === 10
 		? dateFormat.format(new Date(`${value}T12:00Z`))
 		: dateFormat.format(new Date(value));
+}
+
+/** Formats a price in euros, e.g. "0,35 €". */
+export function formatPrice(value: number | null | undefined): string {
+	return value == null ? '—' : priceFormat.format(value);
 }
 
 /** Today's date in Germany as `YYYY-MM-DD`. */
@@ -52,5 +58,8 @@ export function orNull(value: string | null | undefined): string | null {
 
 /** Select options for an optional storage location. */
 export function locationOptions(locations: StorageLocation[]) {
-	return [{ value: '', label: 'None' }, ...locations.map((l) => ({ value: l.id, label: l.name }))];
+	return [
+		{ value: '', label: 'Keiner' },
+		...locations.map((l) => ({ value: l.id, label: l.name }))
+	];
 }

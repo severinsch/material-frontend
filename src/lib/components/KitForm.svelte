@@ -2,7 +2,6 @@
 	import ArrowUpIcon from '@lucide/svelte/icons/arrow-up';
 	import PlusIcon from '@lucide/svelte/icons/plus';
 	import XIcon from '@lucide/svelte/icons/x';
-	import { toast } from 'svelte-sonner';
 	import { api, mutate, type Kit, type Material, type NewKit } from '#lib/api/index.js';
 	import { orNull } from '#lib/format.js';
 	import { Button } from '#lib/components/ui/button/index.js';
@@ -12,7 +11,7 @@
 	import { Label } from '#lib/components/ui/label/index.js';
 	import ConfirmDelete from './ConfirmDelete.svelte';
 	import Field from './Field.svelte';
-	import SelectField from './SelectField.svelte';
+	import MaterialPicker from './MaterialPicker.svelte';
 
 	let { kit, materials }: { kit?: Kit; materials: Material[] } = $props();
 
@@ -25,20 +24,30 @@
 			name: group.name ?? '',
 			requiredUnits: group.requiredUnits,
 			isOptional: group.isOptional,
-			// Options are kept in priority order, the first one is used first.
+			// Alternatives are kept in priority order, the first one is used first.
 			options: group.options
 				.toSorted((a, b) => a.priority - b.priority)
 				.map(({ materialId, unitValue }) => ({ materialId, unitValue }))
 		}))
 	});
 	let saving = $state(false);
+	/** Validation errors are only shown after the first attempt to save. */
+	let submitted = $state(false);
 	let confirmDelete: ConfirmDelete;
 
-	const materialOptions = $derived(
-		materials
-			.map((m) => ({ value: m.id, label: m.name }))
-			.sort((a, b) => a.label.localeCompare(b.label))
-	);
+	type Group = (typeof form.groups)[number];
+
+	/** The validation error of a group's alternatives, if any. */
+	function groupError(group: Group): string | undefined {
+		if (group.options.some((option) => !option.materialId)) {
+			return 'Wähle für jede Alternative ein Material.';
+		}
+		const ids = group.options.map((option) => option.materialId);
+		if (new Set(ids).size < ids.length) return 'Jedes Material kann pro Teil nur einmal vorkommen.';
+	}
+
+	const noParts = $derived(form.groups.length === 0);
+	const isValid = $derived(!noParts && form.groups.every((group) => !groupError(group)));
 
 	function newOption() {
 		return { materialId: '', unitValue: 1 };
@@ -50,10 +59,8 @@
 
 	async function save(event: SubmitEvent) {
 		event.preventDefault();
-		if (form.groups.some((group) => group.options.some((option) => !option.materialId))) {
-			toast.error('Choose a material for every option.');
-			return;
-		}
+		submitted = true;
+		if (!isValid) return;
 		const body: NewKit = {
 			name: form.name,
 			description: orNull(form.description),
@@ -67,16 +74,16 @@
 		const request = kit
 			? api.PUT('/kits/{id}', { params: { path: { id: kit.id } }, body })
 			: api.POST('/kits', { body });
-		await mutate(request, `Saved ${form.name}`, '/kits');
+		await mutate(request, `${form.name} gespeichert`, { redirectTo: '/kits' });
 		saving = false;
 	}
 
 	function remove(kit: Kit) {
-		confirmDelete.show(`kit "${kit.name}"`, () =>
+		confirmDelete.show(`Set „${kit.name}“`, () =>
 			mutate(
 				api.DELETE('/kits/{id}', { params: { path: { id: kit.id } } }),
-				`Deleted ${kit.name}`,
-				'/kits'
+				`${kit.name} gelöscht`,
+				{ redirectTo: '/kits' }
 			)
 		);
 	}
@@ -90,31 +97,34 @@
 				bind:value={form.name}
 				required
 				maxlength={255}
-				placeholder="e.g. Jurte"
+				placeholder="z. B. Jurte"
 			/>
 		</Field>
-		<Field label="Description" id="kit-description">
+		<Field label="Beschreibung" id="kit-description">
 			<Input id="kit-description" bind:value={form.description} />
 		</Field>
 	</div>
 
 	<div class="space-y-2">
-		<h2 class="text-lg font-semibold">Parts</h2>
+		<h2 class="text-lg font-semibold">Teile</h2>
 		<p class="text-sm text-muted-foreground">
-			Each part needs a number of units, filled by one or more interchangeable materials. Materials
-			are used in the listed order; a material can count as several units (e.g. a half roof replaces
-			three tent sheets). Optional parts are packed completely or not at all.
+			Jedes Teil braucht eine Anzahl Einheiten, die von einem oder mehreren austauschbaren
+			Materialien gefüllt werden. Die Alternativen werden in der angegebenen Reihenfolge verwendet;
+			ein Material kann mehrere Einheiten zählen (z. B. ersetzt ein Jurtenhalbdach drei
+			Kohtenblätter). Optionale Teile werden ganz oder gar nicht eingepackt.
 		</p>
 	</div>
 
 	{#each form.groups as group, g (group)}
+		{@const error = submitted ? groupError(group) : undefined}
+		{@const partName = group.name || `Teil ${g + 1}`}
 		<Card.Root>
 			<Card.Content class="space-y-4">
 				<div class="grid gap-4 sm:grid-cols-[1fr_8rem_auto] sm:items-end">
 					<Field label="Name (optional)" id="group-{g}-name">
-						<Input id="group-{g}-name" bind:value={group.name} placeholder="e.g. Roof" />
+						<Input id="group-{g}-name" bind:value={group.name} placeholder="z. B. Dach" />
 					</Field>
-					<Field label="Units" id="group-{g}-units">
+					<Field label="Einheiten" id="group-{g}-units">
 						<Input
 							id="group-{g}-units"
 							type="number"
@@ -130,13 +140,30 @@
 				</div>
 
 				<div class="space-y-2">
+					<div class="flex items-end gap-2 text-sm font-medium">
+						<span class="flex-1">
+							{#if group.options.length > 1}
+								Alternativen <span class="font-normal text-muted-foreground"
+									>(die erste wird bevorzugt)</span
+								>
+							{:else}
+								Material
+							{/if}
+						</span>
+						<span class="w-20 text-xs leading-tight">Einheiten pro Stück</span>
+						<!-- Space above the two buttons of each row. -->
+						<span class="w-16 pointer-coarse:w-24"></span>
+					</div>
 					{#each group.options as option, o (option)}
+						{@const optionName = `Alternative ${o + 1} von ${partName}`}
 						<div class="flex items-center gap-2">
-							<div class="flex-1">
-								<SelectField
+							<div class="min-w-0 flex-1">
+								<MaterialPicker
 									bind:value={option.materialId}
-									options={materialOptions}
-									placeholder="Material…"
+									{materials}
+									aria-label="Material für {optionName}"
+									aria-describedby={error ? `group-${g}-error` : undefined}
+									invalid={submitted && !option.materialId}
 								/>
 							</div>
 							<Input
@@ -144,14 +171,14 @@
 								min={1}
 								required
 								class="w-20"
-								aria-label="Units per piece"
-								title="Units per piece"
+								aria-label="Einheiten pro Stück für {optionName}"
 								bind:value={option.unitValue}
 							/>
 							<Button
 								variant="ghost"
 								size="icon-sm"
-								aria-label="Use earlier"
+								aria-label="{optionName} früher verwenden"
+								title="Früher verwenden"
 								disabled={o === 0}
 								onclick={() => moveUp(group.options, o)}
 							>
@@ -160,7 +187,8 @@
 							<Button
 								variant="ghost"
 								size="icon-sm"
-								aria-label="Remove material"
+								aria-label="{optionName} entfernen"
+								title="Entfernen"
 								disabled={group.options.length === 1}
 								onclick={() => group.options.splice(o, 1)}
 							>
@@ -168,44 +196,61 @@
 							</Button>
 						</div>
 					{/each}
+					{#if error}
+						<p id="group-{g}-error" class="text-sm text-destructive">{error}</p>
+					{/if}
 				</div>
 			</Card.Content>
-			<Card.Footer class="justify-between">
+			<Card.Footer class="flex-wrap justify-between gap-2">
 				<Button variant="outline" size="sm" onclick={() => group.options.push(newOption())}>
-					<PlusIcon />Alternative material
+					<PlusIcon />Alternative hinzufügen
 				</Button>
 				<div class="flex gap-1">
 					<Button
 						variant="ghost"
 						size="sm"
+						aria-label="{partName} nach oben"
 						disabled={g === 0}
 						onclick={() => moveUp(form.groups, g)}
 					>
-						<ArrowUpIcon />Move up
+						<ArrowUpIcon />Nach oben
 					</Button>
-					<Button variant="ghost" size="sm" onclick={() => form.groups.splice(g, 1)}>
-						<XIcon />Remove part
+					<Button
+						variant="ghost"
+						size="sm"
+						aria-label="{partName} entfernen"
+						onclick={() => form.groups.splice(g, 1)}
+					>
+						<XIcon />Teil entfernen
 					</Button>
 				</div>
 			</Card.Footer>
 		</Card.Root>
 	{/each}
 
-	<Button
-		variant="outline"
-		onclick={() =>
-			form.groups.push({ name: '', requiredUnits: 1, isOptional: false, options: [newOption()] })}
-	>
-		<PlusIcon />Add part
-	</Button>
+	<div class="space-y-2">
+		<Button
+			variant="outline"
+			aria-describedby={submitted && noParts ? 'kit-parts-error' : undefined}
+			onclick={() =>
+				form.groups.push({ name: '', requiredUnits: 1, isOptional: false, options: [newOption()] })}
+		>
+			<PlusIcon />Teil hinzufügen
+		</Button>
+		{#if submitted && noParts}
+			<p id="kit-parts-error" class="text-sm text-destructive">
+				Ein Set braucht mindestens ein Teil.
+			</p>
+		{/if}
+	</div>
 
-	<div class="flex justify-between border-t pt-4">
+	<div class="flex flex-wrap justify-between gap-2 border-t pt-4">
 		<div class="flex gap-2">
-			<Button type="submit" disabled={saving}>Save kit</Button>
-			<Button variant="outline" href="/kits">Cancel</Button>
+			<Button type="submit" disabled={saving}>Set speichern</Button>
+			<Button variant="outline" href="/kits">Abbrechen</Button>
 		</div>
 		{#if kit}
-			<Button variant="destructive" onclick={() => remove(kit)}>Delete kit</Button>
+			<Button variant="destructive" onclick={() => remove(kit)}>Set löschen</Button>
 		{/if}
 	</div>
 </form>

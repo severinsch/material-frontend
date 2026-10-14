@@ -8,10 +8,14 @@ groups keep track of their material, plan what to pack for camps and record what
 - **Materials:** bulk materials (counted, e.g. tent pegs) with stock, location and purchases; individual materials
   (tracked piece by piece, e.g. tents) with their items, condition, status and damage reports.
 - **Kits and packing list:** define kits (e.g. "Jurte") from parts with interchangeable materials and optional parts.
-  Select kits to see which materials to pack and what is short.
+  Select kits to see which materials to pack, where they are stored and what is short. The selection is kept in the
+  URL (shareable), and the list can be printed or copied.
 - **Loans:** a simple loan book of what was lent to whom, and when it came back. Lent out pieces can optionally count
   as unavailable.
-- **Locations:** where material is stored.
+- **Locations:** where material is stored, and what is stored where.
+- **Overview:** overdue and open loans, items that need repair and open damage reports.
+
+The interface is in German and follows the system's light or dark mode (switchable in the header).
 
 ## Architecture
 
@@ -24,7 +28,8 @@ groups keep track of their material, plan what to pack for camps and record what
 - The API types in `src/lib/api/schema.d.ts` are generated from the backend's `openapi.json` with
   [openapi-typescript](https://openapi-ts.dev/); requests use the matching typed client
   [openapi-fetch](https://openapi-ts.dev/openapi-fetch/).
-- The packing list calculation is a pure function in `src/lib/kits/allocate.ts` with unit tests next to it.
+- The packing list calculation is a pure function in `src/lib/kits/allocate.ts` with unit tests next to it; the helpers
+  for its URL state, storage places and shortage texts are in `src/lib/kits/packing.ts`.
 
 ## Development
 

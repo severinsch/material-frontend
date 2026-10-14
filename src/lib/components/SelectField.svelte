@@ -5,7 +5,7 @@
 		id,
 		value = $bindable(),
 		options,
-		placeholder = 'Select…'
+		placeholder = 'Auswählen…'
 	}: {
 		id?: string;
 		value: T;

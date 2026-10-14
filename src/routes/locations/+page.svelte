@@ -1,5 +1,4 @@
 <script lang="ts">
-	import PencilIcon from '@lucide/svelte/icons/pencil';
 	import PlusIcon from '@lucide/svelte/icons/plus';
 	import Trash2Icon from '@lucide/svelte/icons/trash-2';
 	import { api, mutate, type StorageLocation } from '#lib/api/index.js';
@@ -7,6 +6,7 @@
 	import * as Table from '#lib/components/ui/table/index.js';
 	import ConfirmDelete from '#lib/components/ConfirmDelete.svelte';
 	import LocationDialog from '#lib/components/LocationDialog.svelte';
+	import RowActions from '#lib/components/RowActions.svelte';
 
 	let { data } = $props();
 
@@ -14,10 +14,10 @@
 	let confirmDelete: ConfirmDelete;
 
 	function remove(location: StorageLocation) {
-		confirmDelete.show(`location "${location.name}"`, () =>
+		confirmDelete.show(`Lagerort „${location.name}“`, () =>
 			mutate(
 				api.DELETE('/locations/{id}', { params: { path: { id: location.id } } }),
-				`Deleted ${location.name}`
+				`${location.name} gelöscht`
 			)
 		);
 	}
@@ -25,8 +25,8 @@
 
 <div class="space-y-4">
 	<div class="flex items-center justify-between gap-4">
-		<h1 class="text-2xl font-bold tracking-tight">Locations</h1>
-		<Button onclick={() => locationDialog.show()}><PlusIcon />Add location</Button>
+		<h1 class="text-2xl font-bold tracking-tight">Lagerorte</h1>
+		<Button onclick={() => locationDialog.show()}><PlusIcon />Lagerort anlegen</Button>
 	</div>
 
 	<div class="rounded-md border">
@@ -34,48 +34,52 @@
 			<Table.Header>
 				<Table.Row>
 					<Table.Head>Name</Table.Head>
-					<Table.Head>Description</Table.Head>
-					<Table.Head class="w-20"></Table.Head>
+					<Table.Head class="hidden sm:table-cell">Beschreibung</Table.Head>
+					<Table.Head><span class="sr-only">Aktionen</span></Table.Head>
 				</Table.Row>
 			</Table.Header>
 			<Table.Body>
 				{#each data.locations as location (location.id)}
 					<Table.Row>
-						<Table.Cell class="font-medium">{location.name}</Table.Cell>
-						<Table.Cell class="whitespace-normal text-muted-foreground"
-							>{location.description ?? ''}</Table.Cell
-						>
+						<Table.Cell class="whitespace-normal">
+							<a href="/locations/{location.id}" class="font-medium hover:underline">
+								{location.name}
+							</a>
+							{#if location.description}
+								<p class="text-sm text-muted-foreground sm:hidden">{location.description}</p>
+							{/if}
+						</Table.Cell>
+						<Table.Cell class="hidden whitespace-normal text-muted-foreground sm:table-cell">
+							{location.description ?? ''}
+						</Table.Cell>
 						<Table.Cell class="text-right">
-							<Button
-								variant="ghost"
-								size="icon-sm"
-								aria-label="Edit"
-								onclick={() => locationDialog.show(location)}
-							>
-								<PencilIcon />
-							</Button>
-							<Button
-								variant="ghost"
-								size="icon-sm"
-								aria-label="Delete"
-								onclick={() => remove(location)}
-							>
-								<Trash2Icon />
-							</Button>
+							<RowActions
+								name={location.name}
+								onedit={() => locationDialog.show(location)}
+								actions={[
+									{
+										label: 'Löschen',
+										icon: Trash2Icon,
+										destructive: true,
+										onselect: () => remove(location)
+									}
+								]}
+							/>
 						</Table.Cell>
 					</Table.Row>
 				{:else}
 					<Table.Row>
-						<Table.Cell colspan={3} class="py-8 text-center text-muted-foreground"
-							>No locations yet.</Table.Cell
-						>
+						<Table.Cell colspan={3} class="py-8 text-center text-muted-foreground">
+							Noch keine Lagerorte.
+						</Table.Cell>
 					</Table.Row>
 				{/each}
 			</Table.Body>
 		</Table.Root>
 	</div>
 	<p class="text-sm text-muted-foreground">
-		Deleting a location keeps its materials and items, without a location.
+		Wenn du einen Lagerort löschst, bleiben seine Materialien und Gegenstände erhalten, nur ohne
+		Lagerort.
 	</p>
 </div>
 

@@ -334,7 +334,7 @@ export interface paths {
                         "application/json": components["schemas"]["ErrorResponse"];
                     };
                 };
-                /** @description The tracking type differs or the name is taken. */
+                /** @description The tracking type differs, the name is taken, or the stock */
                 409: {
                     headers: {
                         [name: string]: unknown;
@@ -610,6 +610,66 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/items/batch": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Create several individual items at once, e.g. a set of new tents. At most 100; either all of them are
+         *     created or none.
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: {
+                content: {
+                    "application/json": components["schemas"]["NewIndividualItem"][];
+                };
+            };
+            responses: {
+                201: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["IndividualItem"][];
+                    };
+                };
+                /** @description Invalid or no items, or a material isn't an individual one. */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description An identifier is taken or used twice. */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/purchases": {
         parameters: {
             query?: never;
@@ -641,7 +701,7 @@ export interface paths {
             };
         };
         put?: never;
-        /** Record a purchase. This doesn't change the stock quantities. */
+        /** Record a purchase. Its quantity is added to the material's available stock. */
         post: {
             parameters: {
                 query?: never;
@@ -719,7 +779,7 @@ export interface paths {
                 };
             };
         };
-        /** Replace a purchase. Its `materialId` can't be changed. */
+        /** Replace a purchase. Its `materialId` can't be changed. The stock changes by the difference of the quantities. */
         put: {
             parameters: {
                 query?: never;
@@ -753,10 +813,19 @@ export interface paths {
                         "application/json": components["schemas"]["ErrorResponse"];
                     };
                 };
+                /** @description The stock would drop below the pieces lent out. */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
             };
         };
         post?: never;
-        /** Delete a purchase. */
+        /** Delete a purchase. Its quantity is subtracted from the stock again. */
         delete: {
             parameters: {
                 query?: never;
@@ -777,6 +846,15 @@ export interface paths {
                 };
                 /** @description No purchase with this id. */
                 404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description The stock would drop below the pieces lent out. */
+                409: {
                     headers: {
                         [name: string]: unknown;
                     };
@@ -1436,6 +1514,7 @@ export interface components {
             /** Format: uuid */
             storageLocationId?: string | null;
             locationDetail?: string | null;
+            expectedAvailableCount?: number | null;
         };
         /** NewIndividualMaterial */
         NewIndividualMaterial: {
@@ -1467,6 +1546,7 @@ export interface components {
             /** Format: date */
             purchaseDate?: string | null;
             onLoan: boolean;
+            hasHistory: boolean;
         };
         /** NewIndividualItem */
         NewIndividualItem: {
@@ -1528,6 +1608,8 @@ export interface components {
             reportedBy?: string | null;
             isResolved?: boolean;
             resolutionNotes?: string | null;
+            /** @enum {string|null} */
+            itemStatus?: "ACTIVE" | "IN_REPAIR" | "LOST" | "DECOMMISSIONED" | null;
         };
         /** KitGroupOption */
         KitGroupOption: {

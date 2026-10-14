@@ -16,6 +16,7 @@ export type ItemStatus = IndividualItem['status'];
 export type StorageLocation = Schemas['StorageLocation'];
 export type Purchase = Schemas['Purchase'];
 export type DamageReport = Schemas['DamageReport'];
+export type NewDamageReport = Schemas['NewDamageReport'];
 export type Kit = Schemas['Kit'];
 export type KitGroup = Schemas['KitGroup'];
 export type NewKit = Schemas['NewKit'];
@@ -46,27 +47,42 @@ export async function unwrap<T>(request: Promise<ApiResult<T>>): Promise<T> {
 	const { data, error: body, response } = await request;
 	if (!response.ok) {
 		const message = (body as { message?: string } | undefined)?.message;
-		error(response.status, message ?? response.statusText);
+		error(response.status, message ?? 'Die Anfrage ist fehlgeschlagen.');
 	}
 	return data as T;
 }
 
+export interface MutateOptions<T> {
+	/** Navigates there afterwards instead of reloading the page data, e.g. to the page of a created material. */
+	redirectTo?: string | ((data: T) => string);
+	/** Offers an "Undo" action in the success toast that runs this request. */
+	undo?: () => Promise<ApiResult<unknown>>;
+}
+
 /**
- * Runs a change, reports the outcome as a toast and reloads the page data, or navigates to [redirectTo].
+ * Runs a change, reports the outcome as a toast and reloads the page data (or navigates, see [MutateOptions]).
  * Returns whether it succeeded.
  */
-export async function mutate(
-	request: Promise<ApiResult<unknown>>,
+export async function mutate<T>(
+	request: Promise<ApiResult<T>>,
 	success: string,
-	redirectTo?: string
+	{ redirectTo, undo }: MutateOptions<T> = {}
 ): Promise<boolean> {
+	let data: T;
 	try {
-		await unwrap(request);
+		data = await unwrap(request);
 	} catch (e) {
-		toast.error(isHttpError(e) ? e.body.message : 'The request failed.');
+		toast.error(isHttpError(e) ? e.body.message : 'Die Anfrage ist fehlgeschlagen.');
 		return false;
 	}
-	toast.success(success);
-	await (redirectTo ? goto(redirectTo) : refreshAll());
+	toast.success(success, {
+		action: undo && {
+			label: 'Rückgängig',
+			onClick: () => void mutate(undo(), 'Rückgängig gemacht')
+		}
+	});
+	await (redirectTo
+		? goto(typeof redirectTo === 'string' ? redirectTo : redirectTo(data))
+		: refreshAll());
 	return true;
 }

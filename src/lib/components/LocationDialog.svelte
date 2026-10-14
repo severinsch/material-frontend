@@ -7,11 +7,13 @@
 
 	let open = $state(false);
 	let id = $state<string | null>(null);
+	let title = $state('');
 	let form = $state({ name: '', description: '' });
 
 	/** Opens the dialog to edit [location], or to add a new one. */
 	export function show(location?: StorageLocation) {
 		id = location?.id ?? null;
+		title = location ? `${location.name} bearbeiten` : 'Lagerort anlegen';
 		form = { name: location?.name ?? '', description: location?.description ?? '' };
 		open = true;
 	}
@@ -21,21 +23,21 @@
 		const request = id
 			? api.PUT('/locations/{id}', { params: { path: { id } }, body })
 			: api.POST('/locations', { body });
-		return mutate(request, `Saved ${form.name}`);
+		return mutate(request, `${form.name} gespeichert`);
 	}
 </script>
 
-<FormDialog bind:open title={id ? 'Edit location' : 'Add location'} onsubmit={save}>
+<FormDialog bind:open {title} submitLabel={id ? 'Speichern' : 'Anlegen'} onsubmit={save}>
 	<Field label="Name" id="location-name">
 		<Input
 			id="location-name"
 			bind:value={form.name}
 			required
 			maxlength={100}
-			placeholder="e.g. Basement"
+			placeholder="z. B. Keller"
 		/>
 	</Field>
-	<Field label="Description" id="location-description">
+	<Field label="Beschreibung" id="location-description">
 		<Input id="location-description" bind:value={form.description} />
 	</Field>
 </FormDialog>

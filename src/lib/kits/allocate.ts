@@ -15,13 +15,27 @@ export interface MaterialNeed {
 	byKit: { kitId: string; quantity: number }[];
 }
 
+/** Units of a group (summed over the kit's quantity) that the stock can't fill. */
+export interface GroupShortage {
+	kitId: string;
+	/** Index of the group in the kit. */
+	groupIndex: number;
+	missingUnits: number;
+}
+
+export interface Allocation {
+	needs: MaterialNeed[];
+	shortages: GroupShortage[];
+}
+
 /**
  * Distributes the available stock over the groups of the selected kits.
  *
  * Groups with a single option are served first, since they can't fall back to anything else. Every group then takes
  * its options in priority order (lowest first): first only whole pieces that fit into the remaining units, then
  * rounding up to cover the rest, so a large piece isn't used where smaller ones fit exactly. If the stock runs out,
- * the missing pieces are counted on the group's preferred option, so the shortage shows up there. This is a greedy
+ * the missing pieces are counted on the group's preferred option, so the shortage shows up there, and the missing
+ * units are reported per group so they can be filled with any of its options. This is a greedy
  * approach: it doesn't search for the best possible combination, which is fine for the small number of
  * interchangeable materials in practice.
  *
@@ -30,15 +44,20 @@ export interface MaterialNeed {
 export function allocate(
 	selections: KitSelection[],
 	stock: ReadonlyMap<string, number>
-): MaterialNeed[] {
+): Allocation {
 	const demands = selections.flatMap(({ kit, quantity, includedGroups }) =>
-		kit.groups
-			.filter((group, index) => !group.isOptional || includedGroups.has(index))
-			.map((group) => ({
-				kitId: kit.id,
-				units: group.requiredUnits * quantity,
-				options: group.options.toSorted((a, b) => a.priority - b.priority)
-			}))
+		kit.groups.flatMap((group, groupIndex) =>
+			!group.isOptional || includedGroups.has(groupIndex)
+				? [
+						{
+							kitId: kit.id,
+							groupIndex,
+							units: group.requiredUnits * quantity,
+							options: group.options.toSorted((a, b) => a.priority - b.priority)
+						}
+					]
+				: []
+		)
 	);
 	demands.sort((a, b) => Number(a.options.length > 1) - Number(b.options.length > 1));
 
@@ -50,7 +69,8 @@ export function allocate(
 		needs.set(materialId, byKit);
 	}
 
-	for (const { kitId, units, options } of demands) {
+	const shortages: GroupShortage[] = [];
+	for (const { kitId, groupIndex, units, options } of demands) {
 		let remaining = units;
 		for (const round of [Math.floor, Math.ceil]) {
 			for (const option of options) {
@@ -68,13 +88,17 @@ export function allocate(
 		if (remaining > 0) {
 			const [preferred] = options;
 			take(preferred.materialId, kitId, Math.ceil(remaining / preferred.unitValue));
+			shortages.push({ kitId, groupIndex, missingUnits: remaining });
 		}
 	}
 
-	return [...needs].map(([materialId, byKit]) => ({
-		materialId,
-		required: [...byKit.values()].reduce((sum, pieces) => sum + pieces, 0),
-		available: stock.get(materialId) ?? 0,
-		byKit: [...byKit].map(([kitId, quantity]) => ({ kitId, quantity }))
-	}));
+	return {
+		needs: [...needs].map(([materialId, byKit]) => ({
+			materialId,
+			required: [...byKit.values()].reduce((sum, pieces) => sum + pieces, 0),
+			available: stock.get(materialId) ?? 0,
+			byKit: [...byKit].map(([kitId, quantity]) => ({ kitId, quantity }))
+		})),
+		shortages
+	};
 }

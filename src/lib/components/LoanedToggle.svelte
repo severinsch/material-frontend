@@ -6,5 +6,5 @@
 
 <div class="flex items-center gap-2">
 	<Switch id="subtract-loaned" bind:checked={settings.subtractLoaned} />
-	<Label for="subtract-loaned">Count lent out pieces as unavailable</Label>
+	<Label for="subtract-loaned">Ausgeliehenes nicht als verfügbar zählen</Label>
 </div>

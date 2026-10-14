@@ -22,7 +22,7 @@ export const fallback: RequestHandler = async ({ request, url }) => {
 			body: hasBody ? await request.text() : undefined
 		});
 	} catch {
-		return Response.json({ message: 'The material API is not reachable.' }, { status: 502 });
+		return Response.json({ message: 'Der Material-Server ist nicht erreichbar.' }, { status: 502 });
 	}
 	const contentType = response.headers.get('content-type');
 	return new Response(response.body, {

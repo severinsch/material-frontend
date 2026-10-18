@@ -1,18 +1,16 @@
 <script lang="ts">
-	import {
-		api,
-		mutate,
-		type Material,
-		type NewMaterial,
-		type StorageLocation
-	} from '#lib/api/index.js';
+	import { mutate, type Material, type NewMaterial, type StorageLocation } from '#lib/api/index.js';
 	import { locationOptions, optionsOf, orNull, trackingTypeLabels } from '#lib/format.js';
+	import { getTenant } from '#lib/tenant.js';
 	import { Input } from '#lib/components/ui/input/index.js';
 	import Field from './Field.svelte';
 	import FormDialog from './FormDialog.svelte';
 	import SelectField from './SelectField.svelte';
 
 	let { locations }: { locations: StorageLocation[] } = $props();
+
+	const tenant = getTenant();
+	const api = $derived(tenant.api);
 
 	let open = $state(false);
 	let id = $state<string | null>(null);
@@ -72,7 +70,9 @@
 		// Individual materials need items next, which are added on the material's page.
 		return mutate(api.POST('/materials', { body }), `${form.name} angelegt`, {
 			redirectTo:
-				body.trackingType === 'INDIVIDUAL' ? (created) => `/materials/${created.id}` : undefined
+				body.trackingType === 'INDIVIDUAL'
+					? (created) => tenant.href(`/materials/${created.id}`)
+					: undefined
 		});
 	}
 </script>

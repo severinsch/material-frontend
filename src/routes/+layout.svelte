@@ -8,22 +8,36 @@
 	import PackageIcon from '@lucide/svelte/icons/package';
 	import { ModeWatcher } from 'mode-watcher';
 	import { page } from '$app/state';
+	import type { UserTenant } from '#lib/api/index.js';
+	import TenantSwitcher from '#lib/components/TenantSwitcher.svelte';
 	import ThemeToggle from '#lib/components/ThemeToggle.svelte';
+	import UserMenu from '#lib/components/UserMenu.svelte';
 	import { Toaster } from '#lib/components/ui/sonner/index.js';
 
-	let { children } = $props();
+	let { data, children } = $props();
 
-	const links: { href: string; label: string; icon: Component }[] = [
-		{ href: '/', label: 'Materialien', icon: PackageIcon },
-		{ href: '/kits', label: 'Sets', icon: BoxesIcon },
-		{ href: '/loans', label: 'Ausleihen', icon: HandshakeIcon },
-		{ href: '/locations', label: 'Lagerorte', icon: MapPinIcon },
-		{ href: '/overview', label: 'Übersicht', icon: LayoutDashboardIcon }
+	/** The tenant of the current page, if any (set by `[tenant]/+layout.server.ts`). */
+	const tenant = $derived(page.data.tenant as UserTenant | undefined);
+	/** Fresher than `data.user` inside a tenant, whose layout reloads it on every navigation. */
+	const user = $derived(page.data.user ?? data.user);
+
+	const pages: { path: string; label: string; icon: Component }[] = [
+		{ path: '', label: 'Materialien', icon: PackageIcon },
+		{ path: '/kits', label: 'Sets', icon: BoxesIcon },
+		{ path: '/loans', label: 'Ausleihen', icon: HandshakeIcon },
+		{ path: '/locations', label: 'Lagerorte', icon: MapPinIcon },
+		{ path: '/overview', label: 'Übersicht', icon: LayoutDashboardIcon }
 	];
 
-	function isActive(href: string) {
-		const path = page.url.pathname;
-		return href === '/' ? path === '/' || path.startsWith('/materials') : path.startsWith(href);
+	const links = $derived(
+		tenant ? pages.map((link) => ({ ...link, href: `/${tenant.slug}${link.path}` })) : []
+	);
+
+	function isActive(path: string) {
+		const relative = page.url.pathname.slice(`/${tenant?.slug}`.length);
+		return path === ''
+			? relative === '' || relative === '/' || relative.startsWith('/materials')
+			: relative.startsWith(path);
 	}
 </script>
 
@@ -31,28 +45,35 @@
 
 <div class="min-h-screen bg-background">
 	<header class="sticky top-0 z-50 border-b bg-background/95 backdrop-blur print:hidden">
-		<div class="container mx-auto flex h-14 items-center gap-6 px-4">
-			<a href="/" class="flex items-center gap-2 font-semibold">
+		<div class="container mx-auto flex h-14 items-center gap-4 px-4">
+			<a
+				href={tenant ? `/${tenant.slug}` : '/'}
+				class="flex shrink-0 items-center gap-2 font-semibold"
+			>
 				<img src="/logo.png" alt="" class="size-6" />
-				<span class="sm:max-lg:sr-only">Materialverwaltung</span>
+				<span class={tenant ? 'sr-only xl:not-sr-only' : ''}>Materialverwaltung</span>
 			</a>
+			{#if tenant && user}
+				<TenantSwitcher tenants={user.tenants} current={tenant} />
+			{/if}
 			<nav aria-label="Hauptnavigation" class="hidden items-center gap-4 text-sm sm:flex">
 				{#each links as link (link.href)}
 					<a
 						href={link.href}
-						aria-current={isActive(link.href) ? 'page' : undefined}
+						aria-current={isActive(link.path) ? 'page' : undefined}
 						class={[
 							'flex items-center gap-1.5 transition-colors hover:text-foreground',
-							isActive(link.href) ? 'font-medium text-foreground' : 'text-muted-foreground'
+							isActive(link.path) ? 'font-medium text-foreground' : 'text-muted-foreground'
 						]}
 					>
-						<link.icon class="size-4" />
+						<link.icon class="size-4 md:max-lg:hidden" />
 						{link.label}
 					</a>
 				{/each}
 			</nav>
-			<div class="ml-auto">
+			<div class="ml-auto flex items-center gap-1">
 				<ThemeToggle />
+				{#if user}<UserMenu {user} {tenant} />{/if}
 			</div>
 		</div>
 	</header>
@@ -61,25 +82,27 @@
 		{@render children()}
 	</main>
 
-	<!-- On phones the navigation sits at the bottom, within reach of the thumb. -->
-	<nav
-		aria-label="Hauptnavigation"
-		class="fixed inset-x-0 bottom-0 z-50 grid h-16 grid-cols-5 border-t bg-background/95 backdrop-blur sm:hidden print:hidden"
-	>
-		{#each links as link (link.href)}
-			<a
-				href={link.href}
-				aria-current={isActive(link.href) ? 'page' : undefined}
-				class={[
-					'flex flex-col items-center justify-center gap-0.5 text-xs',
-					isActive(link.href) ? 'font-medium text-foreground' : 'text-muted-foreground'
-				]}
-			>
-				<link.icon class="size-5" />
-				{link.label}
-			</a>
-		{/each}
-	</nav>
+	{#if links.length > 0}
+		<!-- On phones the navigation sits at the bottom, within reach of the thumb. -->
+		<nav
+			aria-label="Hauptnavigation"
+			class="fixed inset-x-0 bottom-0 z-50 grid h-16 grid-cols-5 border-t bg-background/95 backdrop-blur sm:hidden print:hidden"
+		>
+			{#each links as link (link.href)}
+				<a
+					href={link.href}
+					aria-current={isActive(link.path) ? 'page' : undefined}
+					class={[
+						'flex flex-col items-center justify-center gap-0.5 text-xs',
+						isActive(link.path) ? 'font-medium text-foreground' : 'text-muted-foreground'
+					]}
+				>
+					<link.icon class="size-5" />
+					{link.label}
+				</a>
+			{/each}
+		</nav>
+	{/if}
 </div>
 
 <Toaster richColors position="top-center" />

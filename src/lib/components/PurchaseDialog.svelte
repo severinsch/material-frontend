@@ -1,9 +1,13 @@
 <script lang="ts">
-	import { api, mutate, type Purchase } from '#lib/api/index.js';
+	import { mutate, type Purchase } from '#lib/api/index.js';
 	import { orNull, today } from '#lib/format.js';
+	import { getTenant } from '#lib/tenant.js';
 	import { Input } from '#lib/components/ui/input/index.js';
 	import Field from './Field.svelte';
 	import FormDialog from './FormDialog.svelte';
+
+	const tenant = getTenant();
+	const api = $derived(tenant.api);
 
 	let { material }: { material: { id: string; name: string } } = $props();
 

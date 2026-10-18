@@ -2,8 +2,9 @@
 	import ArrowUpIcon from '@lucide/svelte/icons/arrow-up';
 	import PlusIcon from '@lucide/svelte/icons/plus';
 	import XIcon from '@lucide/svelte/icons/x';
-	import { api, mutate, type Kit, type Material, type NewKit } from '#lib/api/index.js';
+	import { mutate, type Kit, type Material, type NewKit } from '#lib/api/index.js';
 	import { orNull } from '#lib/format.js';
+	import { getTenant } from '#lib/tenant.js';
 	import { Button } from '#lib/components/ui/button/index.js';
 	import * as Card from '#lib/components/ui/card/index.js';
 	import { Checkbox } from '#lib/components/ui/checkbox/index.js';
@@ -12,6 +13,9 @@
 	import ConfirmDelete from './ConfirmDelete.svelte';
 	import Field from './Field.svelte';
 	import MaterialPicker from './MaterialPicker.svelte';
+
+	const tenant = getTenant();
+	const api = $derived(tenant.api);
 
 	let { kit, materials }: { kit?: Kit; materials: Material[] } = $props();
 
@@ -74,7 +78,7 @@
 		const request = kit
 			? api.PUT('/kits/{id}', { params: { path: { id: kit.id } }, body })
 			: api.POST('/kits', { body });
-		await mutate(request, `${form.name} gespeichert`, { redirectTo: '/kits' });
+		await mutate(request, `${form.name} gespeichert`, { redirectTo: tenant.href('/kits') });
 		saving = false;
 	}
 
@@ -83,7 +87,7 @@
 			mutate(
 				api.DELETE('/kits/{id}', { params: { path: { id: kit.id } } }),
 				`${kit.name} gelöscht`,
-				{ redirectTo: '/kits' }
+				{ redirectTo: tenant.href('/kits') }
 			)
 		);
 	}
@@ -247,7 +251,7 @@
 	<div class="flex flex-wrap justify-between gap-2 border-t pt-4">
 		<div class="flex gap-2">
 			<Button type="submit" disabled={saving}>Set speichern</Button>
-			<Button variant="outline" href="/kits">Abbrechen</Button>
+			<Button variant="outline" href={tenant.href('/kits')}>Abbrechen</Button>
 		</div>
 		{#if kit}
 			<Button variant="destructive" onclick={() => remove(kit)}>Set löschen</Button>

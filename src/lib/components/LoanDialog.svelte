@@ -1,7 +1,6 @@
 <script lang="ts">
 	import SearchIcon from '@lucide/svelte/icons/search';
 	import {
-		api,
 		mutate,
 		type IndividualItem,
 		type Loan,
@@ -10,12 +9,16 @@
 	} from '#lib/api/index.js';
 	import { orNull, statusLabels, today } from '#lib/format.js';
 	import { isAvailableItem, loanContents } from '#lib/loans.js';
+	import { getTenant } from '#lib/tenant.js';
 	import { Button } from '#lib/components/ui/button/index.js';
 	import { Checkbox } from '#lib/components/ui/checkbox/index.js';
 	import { Input } from '#lib/components/ui/input/index.js';
 	import { Label } from '#lib/components/ui/label/index.js';
 	import Field from './Field.svelte';
 	import FormDialog from './FormDialog.svelte';
+
+	const tenant = getTenant();
+	const api = $derived(tenant.api);
 
 	let { materials, items }: { materials: Material[]; items: IndividualItem[] } = $props();
 

@@ -29,6 +29,11 @@ const dateFormat = new Intl.DateTimeFormat('de-DE', {
 	timeZone: 'Europe/Berlin',
 	dateStyle: 'medium'
 });
+const dateTimeFormat = new Intl.DateTimeFormat('de-DE', {
+	timeZone: 'Europe/Berlin',
+	dateStyle: 'medium',
+	timeStyle: 'short'
+});
 const isoDateFormat = new Intl.DateTimeFormat('en-CA', { timeZone: 'Europe/Berlin' }); // YYYY-MM-DD
 const priceFormat = new Intl.NumberFormat('de-DE', { style: 'currency', currency: 'EUR' });
 
@@ -39,6 +44,11 @@ export function formatDate(value: string | null | undefined): string {
 	return value.length === 10
 		? dateFormat.format(new Date(`${value}T12:00Z`))
 		: dateFormat.format(new Date(value));
+}
+
+/** Formats a timestamp with its time, e.g. "18.10.2026, 14:30". */
+export function formatDateTime(value: string): string {
+	return dateTimeFormat.format(new Date(value));
 }
 
 /** Formats a price in euros, e.g. "0,35 €". */

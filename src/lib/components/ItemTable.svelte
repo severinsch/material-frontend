@@ -4,13 +4,13 @@
 	import Trash2Icon from '@lucide/svelte/icons/trash-2';
 	import TriangleAlertIcon from '@lucide/svelte/icons/triangle-alert';
 	import {
-		api,
 		mutate,
 		type IndividualItem,
 		type ItemStatus,
 		type StorageLocation
 	} from '#lib/api/index.js';
 	import { conditionLabels, formatDate, statusLabels } from '#lib/format.js';
+	import { getTenant } from '#lib/tenant.js';
 	import { Badge } from '#lib/components/ui/badge/index.js';
 	import { Button } from '#lib/components/ui/button/index.js';
 	import * as Table from '#lib/components/ui/table/index.js';
@@ -18,6 +18,10 @@
 	import DamageDialog from './DamageDialog.svelte';
 	import ItemDialog from './ItemDialog.svelte';
 	import RowActions from './RowActions.svelte';
+
+	const tenant = getTenant();
+	const api = $derived(tenant.api);
+	const canEdit = $derived(tenant.can('EDIT'));
 
 	let {
 		material,
@@ -121,14 +125,14 @@
 						<Table.Cell class="text-right">
 							<RowActions
 								name={nameOf(item)}
-								onedit={() => itemDialog.show(item)}
+								onedit={canEdit ? () => itemDialog.show(item) : undefined}
 								actions={[
 									{
 										label: 'Schaden melden',
 										icon: TriangleAlertIcon,
 										onselect: () => damageDialog.show(item, material.name)
 									},
-									...(item.status === 'DECOMMISSIONED'
+									...(!canEdit || item.status === 'DECOMMISSIONED'
 										? []
 										: [
 												{
@@ -137,16 +141,20 @@
 													onselect: () => setStatus(item, 'DECOMMISSIONED')
 												}
 											]),
-									{
-										label: 'Löschen',
-										icon: Trash2Icon,
-										destructive: true,
-										disabled: item.hasHistory,
-										hint: item.hasHistory
-											? 'Hat Schadensmeldungen oder Ausleihen. Mustere ihn stattdessen aus.'
-											: undefined,
-										onselect: () => remove(item)
-									}
+									...(canEdit
+										? [
+												{
+													label: 'Löschen',
+													icon: Trash2Icon,
+													destructive: true,
+													disabled: item.hasHistory,
+													hint: item.hasHistory
+														? 'Hat Schadensmeldungen oder Ausleihen. Mustere ihn stattdessen aus.'
+														: undefined,
+													onselect: () => remove(item)
+												}
+											]
+										: [])
 								]}
 							/>
 						</Table.Cell>
@@ -154,15 +162,15 @@
 				{:else}
 					<Table.Row>
 						<Table.Cell colspan={6} class="py-6 text-center whitespace-normal">
-							<p class="mb-3 text-muted-foreground">{material.name} hat noch keine Gegenstände.</p>
-							{@render addButton('default')}
+							<p class="text-muted-foreground">{material.name} hat noch keine Gegenstände.</p>
+							{#if canEdit}<div class="mt-3">{@render addButton('default')}</div>{/if}
 						</Table.Cell>
 					</Table.Row>
 				{/each}
 			</Table.Body>
 		</Table.Root>
 	</div>
-	{#if items.length > 0}
+	{#if canEdit && items.length > 0}
 		{@render addButton('outline')}
 	{/if}
 </div>

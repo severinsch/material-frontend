@@ -1,6 +1,5 @@
 <script lang="ts">
 	import {
-		api,
 		mutate,
 		type IndividualItem,
 		type NewIndividualItem,
@@ -14,10 +13,14 @@
 		statusLabels
 	} from '#lib/format.js';
 	import { nextIdentifier, numberedIdentifiers } from '#lib/identifiers.js';
+	import { getTenant } from '#lib/tenant.js';
 	import { Input } from '#lib/components/ui/input/index.js';
 	import Field from './Field.svelte';
 	import FormDialog from './FormDialog.svelte';
 	import SelectField from './SelectField.svelte';
+
+	const tenant = getTenant();
+	const api = $derived(tenant.api);
 
 	let {
 		material,

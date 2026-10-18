@@ -1,12 +1,12 @@
 <script lang="ts">
 	import {
-		api,
 		mutate,
 		type DamageReport,
 		type IndividualItem,
 		type NewDamageReport
 	} from '#lib/api/index.js';
 	import { orNull, statusLabels } from '#lib/format.js';
+	import { getTenant } from '#lib/tenant.js';
 	import { Checkbox } from '#lib/components/ui/checkbox/index.js';
 	import { Input } from '#lib/components/ui/input/index.js';
 	import { Label } from '#lib/components/ui/label/index.js';
@@ -14,6 +14,9 @@
 	import { Textarea } from '#lib/components/ui/textarea/index.js';
 	import Field from './Field.svelte';
 	import FormDialog from './FormDialog.svelte';
+
+	const tenant = getTenant();
+	const api = $derived(tenant.api);
 
 	let open = $state(false);
 	let id = $state<string | null>(null);
@@ -36,7 +39,8 @@
 	function formOf(report?: DamageReport) {
 		return {
 			description: report?.description ?? '',
-			reportedBy: report?.reportedBy ?? '',
+			// New reports are usually made by the person entering them.
+			reportedBy: report ? (report.reportedBy ?? '') : tenant.user.displayName,
 			isResolved: report?.resolvedAt != null,
 			resolutionNotes: report?.resolutionNotes ?? ''
 		};

@@ -4,14 +4,229 @@
  */
 
 export interface paths {
-    "/locations": {
+    "/auth/login": {
         parameters: {
             query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
-        /** Get all storage locations. */
+        get?: never;
+        put?: never;
+        /** Log in with username and password. */
+        post: {
+            parameters: {
+                query?: never;
+                header?: {
+                    "X-Forwarded-For"?: string;
+                };
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: {
+                content: {
+                    "application/json": components["schemas"]["Credentials"];
+                };
+            };
+            responses: {
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["SessionToken"];
+                    };
+                };
+                /** @description Wrong username or password. */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Too many failed attempts, see the Retry-After header. */
+                429: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Too many logins at the same time. */
+                503: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/auth/setup/inspect": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Look up the account of a setup link, for the setup page. */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: {
+                content: {
+                    "application/json": components["schemas"]["SetupToken"];
+                };
+            };
+            responses: {
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["SetupInfo"];
+                    };
+                };
+                /** @description The link is invalid or expired. */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/auth/setup": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Set the password with a setup link, which is used up. Ends all sessions of the user and logs in. */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: {
+                content: {
+                    "application/json": components["schemas"]["PasswordSetup"];
+                };
+            };
+            responses: {
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["SessionToken"];
+                    };
+                };
+                /** @description The link is invalid or expired. */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Too many logins at the same time. */
+                503: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/auth/logout": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** End the current session. */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                204: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description No valid session; log in again. */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/auth/me": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get the current user and the tenants they have access to. */
         get: {
             parameters: {
                 query?: never;
@@ -26,7 +241,188 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content: {
+                        "application/json": components["schemas"]["CurrentUser"];
+                    };
+                };
+                /** @description No valid session; log in again. */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+            };
+        };
+        /** Change the own display name. */
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: {
+                content: {
+                    "application/json": components["schemas"]["NewProfile"];
+                };
+            };
+            responses: {
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["CurrentUser"];
+                    };
+                };
+                /** @description No valid session; log in again. */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+            };
+        };
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/auth/me/password": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Change the own password. Ends all other sessions of the user. */
+        put: {
+            parameters: {
+                query?: never;
+                header?: {
+                    "X-Forwarded-For"?: string;
+                };
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: {
+                content: {
+                    "application/json": components["schemas"]["PasswordChange"];
+                };
+            };
+            responses: {
+                204: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description The current password is wrong, or the new one too short. */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description No valid session; log in again. */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Too many failed attempts, see the Retry-After header. */
+                429: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Too many logins at the same time. */
+                503: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+            };
+        };
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/tenants/{tenantId}/locations": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get all storage locations. */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    /** @description The tenant id. */
+                    tenantId: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
                         "application/json": components["schemas"]["StorageLocation"][];
+                    };
+                };
+                /** @description No valid session; log in again. */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Requires the permission READ in the tenant. */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description No tenant with this id, or the user has no access to it. */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
                     };
                 };
             };
@@ -37,7 +433,10 @@ export interface paths {
             parameters: {
                 query?: never;
                 header?: never;
-                path?: never;
+                path: {
+                    /** @description The tenant id. */
+                    tenantId: string;
+                };
                 cookie?: never;
             };
             requestBody?: {
@@ -52,6 +451,33 @@ export interface paths {
                     };
                     content: {
                         "application/json": components["schemas"]["StorageLocation"];
+                    };
+                };
+                /** @description No valid session; log in again. */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Requires the permission EDIT in the tenant. */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description No tenant with this id, or the user has no access to it. */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
                     };
                 };
                 /** @description The name is taken. */
@@ -71,7 +497,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/locations/{id}": {
+    "/tenants/{tenantId}/locations/{id}": {
         parameters: {
             query?: never;
             header?: never;
@@ -84,6 +510,8 @@ export interface paths {
                 query?: never;
                 header?: never;
                 path: {
+                    /** @description The tenant id. */
+                    tenantId: string;
                     /** @description The location id. */
                     id: string;
                 };
@@ -97,6 +525,24 @@ export interface paths {
                     };
                     content: {
                         "application/json": components["schemas"]["StorageLocation"];
+                    };
+                };
+                /** @description No valid session; log in again. */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Requires the permission READ in the tenant. */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
                     };
                 };
                 /** @description No location with this id. */
@@ -116,6 +562,8 @@ export interface paths {
                 query?: never;
                 header?: never;
                 path: {
+                    /** @description The tenant id. */
+                    tenantId: string;
                     /** @description The location id. */
                     id: string;
                 };
@@ -133,6 +581,24 @@ export interface paths {
                     };
                     content: {
                         "application/json": components["schemas"]["StorageLocation"];
+                    };
+                };
+                /** @description No valid session; log in again. */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Requires the permission EDIT in the tenant. */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
                     };
                 };
                 /** @description No location with this id. */
@@ -153,6 +619,8 @@ export interface paths {
                 query?: never;
                 header?: never;
                 path: {
+                    /** @description The tenant id. */
+                    tenantId: string;
                     /** @description The location id. */
                     id: string;
                 };
@@ -165,6 +633,24 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content?: never;
+                };
+                /** @description No valid session; log in again. */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Requires the permission EDIT in the tenant. */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
                 };
                 /** @description No location with this id. */
                 404: {
@@ -182,7 +668,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/materials": {
+    "/tenants/{tenantId}/materials": {
         parameters: {
             query?: never;
             header?: never;
@@ -197,7 +683,10 @@ export interface paths {
                     type?: "BULK" | "INDIVIDUAL";
                 };
                 header?: never;
-                path?: never;
+                path: {
+                    /** @description The tenant id. */
+                    tenantId: string;
+                };
                 cookie?: never;
             };
             requestBody?: never;
@@ -210,6 +699,33 @@ export interface paths {
                         "application/json": components["schemas"]["Material"][];
                     };
                 };
+                /** @description No valid session; log in again. */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Requires the permission READ in the tenant. */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description No tenant with this id, or the user has no access to it. */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
             };
         };
         put?: never;
@@ -218,7 +734,10 @@ export interface paths {
             parameters: {
                 query?: never;
                 header?: never;
-                path?: never;
+                path: {
+                    /** @description The tenant id. */
+                    tenantId: string;
+                };
                 cookie?: never;
             };
             requestBody?: {
@@ -244,6 +763,33 @@ export interface paths {
                         "application/json": components["schemas"]["ErrorResponse"];
                     };
                 };
+                /** @description No valid session; log in again. */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Requires the permission EDIT in the tenant. */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description No tenant with this id, or the user has no access to it. */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
             };
         };
         delete?: never;
@@ -252,7 +798,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/materials/{id}": {
+    "/tenants/{tenantId}/materials/{id}": {
         parameters: {
             query?: never;
             header?: never;
@@ -265,6 +811,8 @@ export interface paths {
                 query?: never;
                 header?: never;
                 path: {
+                    /** @description The tenant id. */
+                    tenantId: string;
                     /** @description The material id. */
                     id: string;
                 };
@@ -278,6 +826,24 @@ export interface paths {
                     };
                     content: {
                         "application/json": components["schemas"]["Material"];
+                    };
+                };
+                /** @description No valid session; log in again. */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Requires the permission READ in the tenant. */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
                     };
                 };
                 /** @description No material with this id. */
@@ -297,6 +863,8 @@ export interface paths {
                 query?: never;
                 header?: never;
                 path: {
+                    /** @description The tenant id. */
+                    tenantId: string;
                     /** @description The material id. */
                     id: string;
                 };
@@ -318,6 +886,24 @@ export interface paths {
                 };
                 /** @description Invalid material or unknown location. */
                 400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description No valid session; log in again. */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Requires the permission EDIT in the tenant. */
+                403: {
                     headers: {
                         [name: string]: unknown;
                     };
@@ -352,6 +938,8 @@ export interface paths {
                 query?: never;
                 header?: never;
                 path: {
+                    /** @description The tenant id. */
+                    tenantId: string;
                     /** @description The material id. */
                     id: string;
                 };
@@ -364,6 +952,24 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content?: never;
+                };
+                /** @description No valid session; log in again. */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Requires the permission EDIT in the tenant. */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
                 };
                 /** @description No material with this id. */
                 404: {
@@ -390,7 +996,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/items": {
+    "/tenants/{tenantId}/items": {
         parameters: {
             query?: never;
             header?: never;
@@ -405,7 +1011,10 @@ export interface paths {
                     materialId?: string;
                 };
                 header?: never;
-                path?: never;
+                path: {
+                    /** @description The tenant id. */
+                    tenantId: string;
+                };
                 cookie?: never;
             };
             requestBody?: never;
@@ -418,6 +1027,33 @@ export interface paths {
                         "application/json": components["schemas"]["IndividualItem"][];
                     };
                 };
+                /** @description No valid session; log in again. */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Requires the permission READ in the tenant. */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description No tenant with this id, or the user has no access to it. */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
             };
         };
         put?: never;
@@ -426,7 +1062,10 @@ export interface paths {
             parameters: {
                 query?: never;
                 header?: never;
-                path?: never;
+                path: {
+                    /** @description The tenant id. */
+                    tenantId: string;
+                };
                 cookie?: never;
             };
             requestBody?: {
@@ -452,6 +1091,33 @@ export interface paths {
                         "application/json": components["schemas"]["ErrorResponse"];
                     };
                 };
+                /** @description No valid session; log in again. */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Requires the permission EDIT in the tenant. */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description No tenant with this id, or the user has no access to it. */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
                 /** @description The identifier is taken. */
                 409: {
                     headers: {
@@ -469,7 +1135,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/items/{id}": {
+    "/tenants/{tenantId}/items/{id}": {
         parameters: {
             query?: never;
             header?: never;
@@ -482,6 +1148,8 @@ export interface paths {
                 query?: never;
                 header?: never;
                 path: {
+                    /** @description The tenant id. */
+                    tenantId: string;
                     /** @description The item id. */
                     id: string;
                 };
@@ -495,6 +1163,24 @@ export interface paths {
                     };
                     content: {
                         "application/json": components["schemas"]["IndividualItem"];
+                    };
+                };
+                /** @description No valid session; log in again. */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Requires the permission READ in the tenant. */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
                     };
                 };
                 /** @description No item with this id. */
@@ -514,6 +1200,8 @@ export interface paths {
                 query?: never;
                 header?: never;
                 path: {
+                    /** @description The tenant id. */
+                    tenantId: string;
                     /** @description The item id. */
                     id: string;
                 };
@@ -535,6 +1223,24 @@ export interface paths {
                 };
                 /** @description Invalid item. */
                 400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description No valid session; log in again. */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Requires the permission EDIT in the tenant. */
+                403: {
                     headers: {
                         [name: string]: unknown;
                     };
@@ -572,6 +1278,8 @@ export interface paths {
                 query?: never;
                 header?: never;
                 path: {
+                    /** @description The tenant id. */
+                    tenantId: string;
                     /** @description The item id. */
                     id: string;
                 };
@@ -584,6 +1292,24 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content?: never;
+                };
+                /** @description No valid session; log in again. */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Requires the permission EDIT in the tenant. */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
                 };
                 /** @description No item with this id. */
                 404: {
@@ -610,7 +1336,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/items/batch": {
+    "/tenants/{tenantId}/items/batch": {
         parameters: {
             query?: never;
             header?: never;
@@ -627,7 +1353,10 @@ export interface paths {
             parameters: {
                 query?: never;
                 header?: never;
-                path?: never;
+                path: {
+                    /** @description The tenant id. */
+                    tenantId: string;
+                };
                 cookie?: never;
             };
             requestBody?: {
@@ -653,6 +1382,33 @@ export interface paths {
                         "application/json": components["schemas"]["ErrorResponse"];
                     };
                 };
+                /** @description No valid session; log in again. */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Requires the permission EDIT in the tenant. */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description No tenant with this id, or the user has no access to it. */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
                 /** @description An identifier is taken or used twice. */
                 409: {
                     headers: {
@@ -670,7 +1426,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/purchases": {
+    "/tenants/{tenantId}/purchases": {
         parameters: {
             query?: never;
             header?: never;
@@ -685,7 +1441,10 @@ export interface paths {
                     materialId?: string;
                 };
                 header?: never;
-                path?: never;
+                path: {
+                    /** @description The tenant id. */
+                    tenantId: string;
+                };
                 cookie?: never;
             };
             requestBody?: never;
@@ -698,6 +1457,33 @@ export interface paths {
                         "application/json": components["schemas"]["Purchase"][];
                     };
                 };
+                /** @description No valid session; log in again. */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Requires the permission READ in the tenant. */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description No tenant with this id, or the user has no access to it. */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
             };
         };
         put?: never;
@@ -706,7 +1492,10 @@ export interface paths {
             parameters: {
                 query?: never;
                 header?: never;
-                path?: never;
+                path: {
+                    /** @description The tenant id. */
+                    tenantId: string;
+                };
                 cookie?: never;
             };
             requestBody?: {
@@ -732,6 +1521,33 @@ export interface paths {
                         "application/json": components["schemas"]["ErrorResponse"];
                     };
                 };
+                /** @description No valid session; log in again. */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Requires the permission EDIT in the tenant. */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description No tenant with this id, or the user has no access to it. */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
             };
         };
         delete?: never;
@@ -740,7 +1556,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/purchases/{id}": {
+    "/tenants/{tenantId}/purchases/{id}": {
         parameters: {
             query?: never;
             header?: never;
@@ -753,6 +1569,8 @@ export interface paths {
                 query?: never;
                 header?: never;
                 path: {
+                    /** @description The tenant id. */
+                    tenantId: string;
                     /** @description The purchase id. */
                     id: string;
                 };
@@ -766,6 +1584,24 @@ export interface paths {
                     };
                     content: {
                         "application/json": components["schemas"]["Purchase"];
+                    };
+                };
+                /** @description No valid session; log in again. */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Requires the permission READ in the tenant. */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
                     };
                 };
                 /** @description No purchase with this id. */
@@ -785,6 +1621,8 @@ export interface paths {
                 query?: never;
                 header?: never;
                 path: {
+                    /** @description The tenant id. */
+                    tenantId: string;
                     /** @description The purchase id. */
                     id: string;
                 };
@@ -802,6 +1640,24 @@ export interface paths {
                     };
                     content: {
                         "application/json": components["schemas"]["Purchase"];
+                    };
+                };
+                /** @description No valid session; log in again. */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Requires the permission EDIT in the tenant. */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
                     };
                 };
                 /** @description No purchase with this id. */
@@ -831,6 +1687,8 @@ export interface paths {
                 query?: never;
                 header?: never;
                 path: {
+                    /** @description The tenant id. */
+                    tenantId: string;
                     /** @description The purchase id. */
                     id: string;
                 };
@@ -843,6 +1701,24 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content?: never;
+                };
+                /** @description No valid session; log in again. */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Requires the permission EDIT in the tenant. */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
                 };
                 /** @description No purchase with this id. */
                 404: {
@@ -869,7 +1745,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/damages": {
+    "/tenants/{tenantId}/damages": {
         parameters: {
             query?: never;
             header?: never;
@@ -884,7 +1760,10 @@ export interface paths {
                     itemId?: string;
                 };
                 header?: never;
-                path?: never;
+                path: {
+                    /** @description The tenant id. */
+                    tenantId: string;
+                };
                 cookie?: never;
             };
             requestBody?: never;
@@ -897,15 +1776,48 @@ export interface paths {
                         "application/json": components["schemas"]["DamageReport"][];
                     };
                 };
+                /** @description No valid session; log in again. */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Requires the permission READ in the tenant. */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description No tenant with this id, or the user has no access to it. */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
             };
         };
         put?: never;
-        /** Report a damage. */
+        /**
+         * Report a damage. Without the permission EDIT (viewers), only unresolved reports without resolution
+         *     notes, and `itemStatus` can only send an active item to repair.
+         */
         post: {
             parameters: {
                 query?: never;
                 header?: never;
-                path?: never;
+                path: {
+                    /** @description The tenant id. */
+                    tenantId: string;
+                };
                 cookie?: never;
             };
             requestBody?: {
@@ -931,6 +1843,33 @@ export interface paths {
                         "application/json": components["schemas"]["ErrorResponse"];
                     };
                 };
+                /** @description No valid session; log in again. */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Requires the permission REPORT_DAMAGE in the tenant. */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description No tenant with this id, or the user has no access to it. */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
             };
         };
         delete?: never;
@@ -939,7 +1878,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/damages/{id}": {
+    "/tenants/{tenantId}/damages/{id}": {
         parameters: {
             query?: never;
             header?: never;
@@ -952,6 +1891,8 @@ export interface paths {
                 query?: never;
                 header?: never;
                 path: {
+                    /** @description The tenant id. */
+                    tenantId: string;
                     /** @description The report id. */
                     id: string;
                 };
@@ -965,6 +1906,24 @@ export interface paths {
                     };
                     content: {
                         "application/json": components["schemas"]["DamageReport"];
+                    };
+                };
+                /** @description No valid session; log in again. */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Requires the permission READ in the tenant. */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
                     };
                 };
                 /** @description No report with this id. */
@@ -984,6 +1943,8 @@ export interface paths {
                 query?: never;
                 header?: never;
                 path: {
+                    /** @description The tenant id. */
+                    tenantId: string;
                     /** @description The report id. */
                     id: string;
                 };
@@ -1001,6 +1962,24 @@ export interface paths {
                     };
                     content: {
                         "application/json": components["schemas"]["DamageReport"];
+                    };
+                };
+                /** @description No valid session; log in again. */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Requires the permission EDIT in the tenant. */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
                     };
                 };
                 /** @description No report with this id. */
@@ -1021,6 +2000,8 @@ export interface paths {
                 query?: never;
                 header?: never;
                 path: {
+                    /** @description The tenant id. */
+                    tenantId: string;
                     /** @description The report id. */
                     id: string;
                 };
@@ -1033,6 +2014,24 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content?: never;
+                };
+                /** @description No valid session; log in again. */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Requires the permission EDIT in the tenant. */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
                 };
                 /** @description No report with this id. */
                 404: {
@@ -1050,7 +2049,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/kits": {
+    "/tenants/{tenantId}/kits": {
         parameters: {
             query?: never;
             header?: never;
@@ -1062,7 +2061,10 @@ export interface paths {
             parameters: {
                 query?: never;
                 header?: never;
-                path?: never;
+                path: {
+                    /** @description The tenant id. */
+                    tenantId: string;
+                };
                 cookie?: never;
             };
             requestBody?: never;
@@ -1075,6 +2077,33 @@ export interface paths {
                         "application/json": components["schemas"]["Kit"][];
                     };
                 };
+                /** @description No valid session; log in again. */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Requires the permission READ in the tenant. */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description No tenant with this id, or the user has no access to it. */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
             };
         };
         put?: never;
@@ -1083,7 +2112,10 @@ export interface paths {
             parameters: {
                 query?: never;
                 header?: never;
-                path?: never;
+                path: {
+                    /** @description The tenant id. */
+                    tenantId: string;
+                };
                 cookie?: never;
             };
             requestBody?: {
@@ -1109,6 +2141,33 @@ export interface paths {
                         "application/json": components["schemas"]["ErrorResponse"];
                     };
                 };
+                /** @description No valid session; log in again. */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Requires the permission EDIT in the tenant. */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description No tenant with this id, or the user has no access to it. */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
                 /** @description The name is taken. */
                 409: {
                     headers: {
@@ -1126,7 +2185,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/kits/{id}": {
+    "/tenants/{tenantId}/kits/{id}": {
         parameters: {
             query?: never;
             header?: never;
@@ -1139,6 +2198,8 @@ export interface paths {
                 query?: never;
                 header?: never;
                 path: {
+                    /** @description The tenant id. */
+                    tenantId: string;
                     /** @description The kit id. */
                     id: string;
                 };
@@ -1152,6 +2213,24 @@ export interface paths {
                     };
                     content: {
                         "application/json": components["schemas"]["Kit"];
+                    };
+                };
+                /** @description No valid session; log in again. */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Requires the permission READ in the tenant. */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
                     };
                 };
                 /** @description No kit with this id. */
@@ -1171,6 +2250,8 @@ export interface paths {
                 query?: never;
                 header?: never;
                 path: {
+                    /** @description The tenant id. */
+                    tenantId: string;
                     /** @description The kit id. */
                     id: string;
                 };
@@ -1188,6 +2269,24 @@ export interface paths {
                     };
                     content: {
                         "application/json": components["schemas"]["Kit"];
+                    };
+                };
+                /** @description No valid session; log in again. */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Requires the permission EDIT in the tenant. */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
                     };
                 };
                 /** @description No kit with this id. */
@@ -1208,6 +2307,8 @@ export interface paths {
                 query?: never;
                 header?: never;
                 path: {
+                    /** @description The tenant id. */
+                    tenantId: string;
                     /** @description The kit id. */
                     id: string;
                 };
@@ -1220,6 +2321,24 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content?: never;
+                };
+                /** @description No valid session; log in again. */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Requires the permission EDIT in the tenant. */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
                 };
                 /** @description No kit with this id. */
                 404: {
@@ -1237,7 +2356,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/loans": {
+    "/tenants/{tenantId}/loans": {
         parameters: {
             query?: never;
             header?: never;
@@ -1252,7 +2371,10 @@ export interface paths {
                     open?: boolean;
                 };
                 header?: never;
-                path?: never;
+                path: {
+                    /** @description The tenant id. */
+                    tenantId: string;
+                };
                 cookie?: never;
             };
             requestBody?: never;
@@ -1265,6 +2387,33 @@ export interface paths {
                         "application/json": components["schemas"]["Loan"][];
                     };
                 };
+                /** @description No valid session; log in again. */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Requires the permission READ in the tenant. */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description No tenant with this id, or the user has no access to it. */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
             };
         };
         put?: never;
@@ -1272,7 +2421,10 @@ export interface paths {
             parameters: {
                 query?: never;
                 header?: never;
-                path?: never;
+                path: {
+                    /** @description The tenant id. */
+                    tenantId: string;
+                };
                 cookie?: never;
             };
             requestBody?: {
@@ -1298,6 +2450,33 @@ export interface paths {
                         "application/json": components["schemas"]["ErrorResponse"];
                     };
                 };
+                /** @description No valid session; log in again. */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Requires the permission EDIT in the tenant. */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description No tenant with this id, or the user has no access to it. */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
                 /** @description Something isn't available (inactive, lent out, out of stock). */
                 409: {
                     headers: {
@@ -1315,7 +2494,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/loans/{id}": {
+    "/tenants/{tenantId}/loans/{id}": {
         parameters: {
             query?: never;
             header?: never;
@@ -1328,6 +2507,8 @@ export interface paths {
                 query?: never;
                 header?: never;
                 path: {
+                    /** @description The tenant id. */
+                    tenantId: string;
                     /** @description The loan id. */
                     id: string;
                 };
@@ -1341,6 +2522,24 @@ export interface paths {
                     };
                     content: {
                         "application/json": components["schemas"]["Loan"];
+                    };
+                };
+                /** @description No valid session; log in again. */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Requires the permission READ in the tenant. */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
                     };
                 };
                 /** @description No loan with this id. */
@@ -1360,6 +2559,8 @@ export interface paths {
                 query?: never;
                 header?: never;
                 path: {
+                    /** @description The tenant id. */
+                    tenantId: string;
                     /** @description The loan id. */
                     id: string;
                 };
@@ -1377,6 +2578,24 @@ export interface paths {
                     };
                     content: {
                         "application/json": components["schemas"]["Loan"];
+                    };
+                };
+                /** @description No valid session; log in again. */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Requires the permission EDIT in the tenant. */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
                     };
                 };
                 /** @description No loan with this id. */
@@ -1406,6 +2625,8 @@ export interface paths {
                 query?: never;
                 header?: never;
                 path: {
+                    /** @description The tenant id. */
+                    tenantId: string;
                     /** @description The loan id. */
                     id: string;
                 };
@@ -1418,6 +2639,24 @@ export interface paths {
                         [name: string]: unknown;
                     };
                     content?: never;
+                };
+                /** @description No valid session; log in again. */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Requires the permission EDIT in the tenant. */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
                 };
                 /** @description No loan with this id. */
                 404: {
@@ -1435,20 +2674,998 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/tenants/{tenantId}/members": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get the members of the tenant. */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    /** @description The tenant id. */
+                    tenantId: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Member"][];
+                    };
+                };
+                /** @description No valid session; log in again. */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Requires the permission VIEW_MEMBERS in the tenant. */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description No tenant with this id, or the user has no access to it. */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        /**
+         * Create an account as member of the tenant. The response contains a setup link token, with which the user
+         *     sets their password.
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    /** @description The tenant id. */
+                    tenantId: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: {
+                content: {
+                    "application/json": components["schemas"]["NewMember"];
+                };
+            };
+            responses: {
+                201: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["CreatedMember"];
+                    };
+                };
+                /** @description No valid session; log in again. */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Requires the permission MANAGE_MEMBERS in the tenant. */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description No tenant with this id, or the user has no access to it. */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description The username is taken. */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/tenants/{tenantId}/members/{userId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Change the role of a member, and optionally name and username. Tenant admins can only change name and
+         *     username of accounts that belong to no other tenant. Platform admins can add users of other tenants.
+         */
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    /** @description The tenant id. */
+                    tenantId: string;
+                    /** @description The user id. */
+                    userId: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: {
+                content: {
+                    "application/json": components["schemas"]["MemberUpdate"];
+                };
+            };
+            responses: {
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Member"];
+                    };
+                };
+                /** @description No valid session; log in again. */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description The account belongs to another tenant or a platform admin. */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description No member with this id. */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description The last admin can't be demoted, or the username is taken. */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+            };
+        };
+        post?: never;
+        /** Remove a member from the tenant. The account itself stays. */
+        delete: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    /** @description The tenant id. */
+                    tenantId: string;
+                    /** @description The user id. */
+                    userId: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                204: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description No valid session; log in again. */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description The member is a platform admin. */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description No member with this id. */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description The last admin can't be removed. */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+            };
+        };
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/tenants/{tenantId}/members/{userId}/setup-link": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Create a new setup link for a member, e.g. after a forgotten password. Replaces an older link; the current
+         *     password keeps working until the link is used.
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    /** @description The tenant id. */
+                    tenantId: string;
+                    /** @description The user id. */
+                    userId: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["SetupLink"];
+                    };
+                };
+                /** @description No valid session; log in again. */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description The account belongs to another tenant or a platform admin. */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description No member with this id. */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description The account is disabled. */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/tenants": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get all tenants, including deleted ones. */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Tenant"][];
+                    };
+                };
+                /** @description No valid session; log in again. */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Only for platform admins. */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        /** Create a tenant. It has no members yet; add an admin via its member routes. */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: {
+                content: {
+                    "application/json": components["schemas"]["NewTenant"];
+                };
+            };
+            responses: {
+                201: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Tenant"];
+                    };
+                };
+                /** @description Invalid or reserved slug. */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description No valid session; log in again. */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Only for platform admins. */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description The name or slug is taken. */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/tenants/{tenantId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Rename a tenant or change its slug, which breaks existing links. */
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    /** @description The tenant id. */
+                    tenantId: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: {
+                content: {
+                    "application/json": components["schemas"]["NewTenant"];
+                };
+            };
+            responses: {
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Tenant"];
+                    };
+                };
+                /** @description No valid session; log in again. */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Only for platform admins. */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description No tenant with this id. */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description The name or slug is taken. */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+            };
+        };
+        post?: never;
+        /** Delete a tenant. It can be restored with all of its data. */
+        delete: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    /** @description The tenant id. */
+                    tenantId: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                204: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description No valid session; log in again. */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Only for platform admins. */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description No tenant with this id, or already deleted. */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+            };
+        };
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/tenants/{tenantId}/restore": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Restore a deleted tenant. */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    /** @description The tenant id. */
+                    tenantId: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Tenant"];
+                    };
+                };
+                /** @description No valid session; log in again. */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Only for platform admins. */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description No tenant with this id. */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Another tenant has the name or slug now. */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/users": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get all accounts with their memberships. */
+        get: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path?: never;
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["User"][];
+                    };
+                };
+                /** @description No valid session; log in again. */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Only for platform admins. */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+            };
+        };
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/users/{userId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Change an account. Disabling it ends its sessions. */
+        put: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    /** @description The user id. */
+                    userId: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: {
+                content: {
+                    "application/json": components["schemas"]["UserUpdate"];
+                };
+            };
+            responses: {
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["User"];
+                    };
+                };
+                /** @description No valid session; log in again. */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Only for platform admins. */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description No user with this id. */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description The last admin of a tenant or the platform, or the username is taken. */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+            };
+        };
+        post?: never;
+        /** Delete an account with its memberships. */
+        delete: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    /** @description The user id. */
+                    userId: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                204: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description No valid session; log in again. */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Only for platform admins. */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description No user with this id. */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description The last admin of a tenant or the platform. */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+            };
+        };
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/users/{userId}/setup-link": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Create a new setup link for an account, e.g. after a forgotten password. Replaces an older link; the
+         *     current password keeps working until the link is used.
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    /** @description The user id. */
+                    userId: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["SetupLink"];
+                    };
+                };
+                /** @description No valid session; log in again. */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Only for platform admins. */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description No user with this id. */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description The account is disabled. */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /** Credentials */
+        Credentials: {
+            username: string;
+            password: string;
+        };
+        /** ErrorResponse */
+        ErrorResponse: {
+            message: string;
+        };
+        /** SessionToken */
+        SessionToken: {
+            token: string;
+            /** Format: date-time */
+            expiresAt: string;
+        };
+        /** SetupToken */
+        SetupToken: {
+            token: string;
+        };
+        /** SetupInfo */
+        SetupInfo: {
+            displayName: string;
+            username: string;
+        };
+        /** PasswordSetup */
+        PasswordSetup: {
+            token: string;
+            password: string;
+        };
+        /** UserTenant */
+        UserTenant: {
+            /** Format: uuid */
+            id: string;
+            name: string;
+            slug: string;
+            /** @enum {string} */
+            role: "VIEWER" | "EDITOR" | "ADMIN";
+            isMember: boolean;
+        };
+        /** CurrentUser */
+        CurrentUser: {
+            /** Format: uuid */
+            id: string;
+            displayName: string;
+            username?: string | null;
+            isPlatformAdmin: boolean;
+            tenants: components["schemas"]["UserTenant"][];
+        };
+        /** NewProfile */
+        NewProfile: {
+            displayName: string;
+        };
+        /** PasswordChange */
+        PasswordChange: {
+            currentPassword: string;
+            newPassword: string;
+        };
         /** StorageLocation */
         StorageLocation: {
             /** Format: uuid */
             id: string;
             name: string;
             description?: string | null;
-        };
-        /** ErrorResponse */
-        ErrorResponse: {
-            message: string;
         };
         /** NewStorageLocation */
         NewStorageLocation: {
@@ -1685,6 +3902,85 @@ export interface components {
             note?: string | null;
             itemIds?: string[];
             materials?: components["schemas"]["LoanQuantity"][];
+        };
+        /** Member */
+        Member: {
+            /** Format: uuid */
+            userId: string;
+            displayName: string;
+            username?: string | null;
+            /** @enum {string} */
+            role: "VIEWER" | "EDITOR" | "ADMIN";
+            isDisabled: boolean;
+            setupPending: boolean;
+            /** @enum {string} */
+            loginMethod: "PASSWORD";
+        };
+        /** NewMember */
+        NewMember: {
+            displayName: string;
+            username: string;
+            /** @enum {string} */
+            role: "VIEWER" | "EDITOR" | "ADMIN";
+        };
+        /** SetupLink */
+        SetupLink: {
+            token: string;
+            /** Format: date-time */
+            expiresAt: string;
+        };
+        /** CreatedMember */
+        CreatedMember: {
+            member: components["schemas"]["Member"];
+            setupLink: components["schemas"]["SetupLink"];
+        };
+        /** MemberUpdate */
+        MemberUpdate: {
+            /** @enum {string} */
+            role: "VIEWER" | "EDITOR" | "ADMIN";
+            displayName?: string | null;
+            username?: string | null;
+        };
+        /** Tenant */
+        Tenant: {
+            /** Format: uuid */
+            id: string;
+            name: string;
+            slug: string;
+            /** Format: date-time */
+            deletedAt?: string | null;
+        };
+        /** NewTenant */
+        NewTenant: {
+            name: string;
+            slug: string;
+        };
+        /** Membership */
+        Membership: {
+            /** Format: uuid */
+            tenantId: string;
+            /** @enum {string} */
+            role: "VIEWER" | "EDITOR" | "ADMIN";
+        };
+        /** User */
+        User: {
+            /** Format: uuid */
+            id: string;
+            displayName: string;
+            username?: string | null;
+            /** @enum {string} */
+            loginMethod: "PASSWORD";
+            isPlatformAdmin: boolean;
+            isDisabled: boolean;
+            setupPending: boolean;
+            memberships: components["schemas"]["Membership"][];
+        };
+        /** UserUpdate */
+        UserUpdate: {
+            displayName: string;
+            username?: string | null;
+            isPlatformAdmin: boolean;
+            isDisabled: boolean;
         };
     };
     responses: never;

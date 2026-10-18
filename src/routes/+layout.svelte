@@ -9,6 +9,7 @@
 	import { ModeWatcher } from 'mode-watcher';
 	import { page } from '$app/state';
 	import type { UserTenant } from '#lib/api/index.js';
+	import { hasPermission, type Permission } from '#lib/permissions.js';
 	import TenantSwitcher from '#lib/components/TenantSwitcher.svelte';
 	import ThemeToggle from '#lib/components/ThemeToggle.svelte';
 	import UserMenu from '#lib/components/UserMenu.svelte';
@@ -20,16 +21,20 @@
 	const tenant = $derived(page.data.tenant as UserTenant | undefined);
 	const user = $derived(data.user);
 
-	const pages: { path: string; label: string; icon: Component }[] = [
+	const pages: { path: string; label: string; icon: Component; permission?: Permission }[] = [
 		{ path: '', label: 'Materialien', icon: PackageIcon },
 		{ path: '/kits', label: 'Sets', icon: BoxesIcon },
 		{ path: '/loans', label: 'Ausleihen', icon: HandshakeIcon },
 		{ path: '/locations', label: 'Lagerorte', icon: MapPinIcon },
-		{ path: '/overview', label: 'Übersicht', icon: LayoutDashboardIcon }
+		{ path: '/overview', label: 'Übersicht', icon: LayoutDashboardIcon, permission: 'EDIT' }
 	];
 
 	const links = $derived(
-		tenant ? pages.map((link) => ({ ...link, href: `/${tenant.slug}${link.path}` })) : []
+		tenant
+			? pages
+					.filter((link) => !link.permission || hasPermission(tenant.role, link.permission))
+					.map((link) => ({ ...link, href: `/${tenant.slug}${link.path}` }))
+			: []
 	);
 
 	function isActive(path: string) {

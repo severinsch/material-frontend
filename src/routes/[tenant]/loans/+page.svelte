@@ -57,10 +57,8 @@
 
 <div class="space-y-4">
 	<div class="flex items-center justify-between gap-4">
-		<h1 class="text-2xl font-bold tracking-tight">Ausleihen</h1>
-		{#if canEdit}
-			<Button onclick={() => loanDialog.show()}><PlusIcon />Material ausleihen</Button>
-		{/if}
+		<h1 class="text-2xl font-bold tracking-tight">{canEdit ? 'Ausleihen' : 'Meine Ausleihen'}</h1>
+		<Button onclick={() => loanDialog.show()}><PlusIcon />Material ausleihen</Button>
 	</div>
 
 	<nav aria-label="Filter" class="flex gap-2">
@@ -109,7 +107,7 @@
 						<Table.Cell class="hidden sm:table-cell">{@render dueOrReturned(loan)}</Table.Cell>
 						<Table.Cell class="text-right">
 							<div class="flex flex-wrap items-center justify-end gap-1">
-								{#if canEdit && !loan.returnedAt}
+								{#if !loan.returnedAt}
 									<Button
 										variant="outline"
 										size="sm"
@@ -134,6 +132,12 @@
 											}
 										]}
 									/>
+								{:else if !loan.returnedAt}
+									<!-- Others can change their own loans until they are returned. -->
+									<RowActions
+										name="Ausleihe an {loan.borrower}"
+										onedit={() => loanDialog.show(loan)}
+									/>
 								{/if}
 							</div>
 						</Table.Cell>
@@ -141,7 +145,13 @@
 				{:else}
 					<Table.Row>
 						<Table.Cell colspan={5} class="py-8 text-center text-muted-foreground">
-							{data.showAll ? 'Noch keine Ausleihen.' : 'Nichts ist ausgeliehen.'}
+							{#if canEdit}
+								{data.showAll ? 'Noch keine Ausleihen.' : 'Nichts ist ausgeliehen.'}
+							{:else}
+								{data.showAll
+									? 'Du hast noch nichts ausgeliehen.'
+									: 'Du hast gerade nichts ausgeliehen.'}
+							{/if}
 						</Table.Cell>
 					</Table.Row>
 				{/each}
@@ -150,5 +160,10 @@
 	</div>
 </div>
 
-<LoanDialog bind:this={loanDialog} materials={data.materials} items={data.items} />
+<LoanDialog
+	bind:this={loanDialog}
+	materials={data.materials}
+	items={data.items}
+	members={data.members}
+/>
 <ConfirmDelete bind:this={confirmDelete} />

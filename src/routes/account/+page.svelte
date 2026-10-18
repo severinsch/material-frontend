@@ -46,7 +46,6 @@
 	<Card.Root>
 		<Card.Header>
 			<Card.Title>Name</Card.Title>
-			{#if user.username}<Card.Description>Benutzername: {user.username}</Card.Description>{/if}
 		</Card.Header>
 		<Card.Content>
 			<form class="flex gap-2" onsubmit={saveProfile}>
@@ -64,7 +63,16 @@
 			</Card.Header>
 			<Card.Content>
 				<form class="grid gap-4" onsubmit={changePassword}>
-					<input type="hidden" autocomplete="username" value={user.username} />
+					<!-- Visible, so password managers know which login to update. -->
+					<Field label="Benutzername" id="username">
+						<Input
+							id="username"
+							type="text"
+							autocomplete="username"
+							readonly
+							value={user.username}
+						/>
+					</Field>
 					<Field label="Aktuelles Passwort" id="current-password">
 						<Input
 							id="current-password"

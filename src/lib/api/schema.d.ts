@@ -2363,7 +2363,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Get all loans. */
+        /** Get all loans; without the permission EDIT only the user's own. */
         get: {
             parameters: {
                 query?: {
@@ -2396,7 +2396,7 @@ export interface paths {
                         "application/json": components["schemas"]["ErrorResponse"];
                     };
                 };
-                /** @description Requires the permission READ in the tenant. */
+                /** @description Requires the permission BORROW in the tenant. */
                 403: {
                     headers: {
                         [name: string]: unknown;
@@ -2441,7 +2441,7 @@ export interface paths {
                         "application/json": components["schemas"]["Loan"];
                     };
                 };
-                /** @description Invalid loan or unknown item or material. */
+                /** @description Invalid loan, unknown item or material, or the borrower isn't a member. */
                 400: {
                     headers: {
                         [name: string]: unknown;
@@ -2459,7 +2459,7 @@ export interface paths {
                         "application/json": components["schemas"]["ErrorResponse"];
                     };
                 };
-                /** @description Requires the permission EDIT in the tenant. */
+                /** @description Requires the permission BORROW in the tenant. */
                 403: {
                     headers: {
                         [name: string]: unknown;
@@ -2533,7 +2533,7 @@ export interface paths {
                         "application/json": components["schemas"]["ErrorResponse"];
                     };
                 };
-                /** @description Requires the permission READ in the tenant. */
+                /** @description Requires the permission BORROW in the tenant. */
                 403: {
                     headers: {
                         [name: string]: unknown;
@@ -2542,7 +2542,7 @@ export interface paths {
                         "application/json": components["schemas"]["ErrorResponse"];
                     };
                 };
-                /** @description No loan with this id. */
+                /** @description No loan with this id that the user may see. */
                 404: {
                     headers: {
                         [name: string]: unknown;
@@ -2553,7 +2553,10 @@ export interface paths {
                 };
             };
         };
-        /** Replace a loan including its items. Set `returnedAt` to mark it as returned. */
+        /**
+         * Replace a loan including its items. Set `returnedAt` to mark it as returned. Without the permission EDIT
+         *     only the user's own open loans, and they stay theirs.
+         */
         put: {
             parameters: {
                 query?: never;
@@ -2589,7 +2592,7 @@ export interface paths {
                         "application/json": components["schemas"]["ErrorResponse"];
                     };
                 };
-                /** @description Requires the permission EDIT in the tenant. */
+                /** @description Requires the permission BORROW in the tenant. */
                 403: {
                     headers: {
                         [name: string]: unknown;
@@ -2598,7 +2601,7 @@ export interface paths {
                         "application/json": components["schemas"]["ErrorResponse"];
                     };
                 };
-                /** @description No loan with this id. */
+                /** @description No loan with this id that the user may see. */
                 404: {
                     headers: {
                         [name: string]: unknown;
@@ -3880,6 +3883,8 @@ export interface components {
             /** Format: uuid */
             id: string;
             borrower: string;
+            /** Format: uuid */
+            borrowerId?: string | null;
             /** Format: date */
             lentAt: string;
             /** Format: date */
@@ -3892,7 +3897,7 @@ export interface components {
         };
         /** NewLoan */
         NewLoan: {
-            borrower: string;
+            borrower?: string | null;
             /** Format: date */
             lentAt: string;
             /** Format: date */
@@ -3902,6 +3907,8 @@ export interface components {
             note?: string | null;
             itemIds?: string[];
             materials?: components["schemas"]["LoanQuantity"][];
+            /** Format: uuid */
+            borrowerId?: string | null;
         };
         /** Member */
         Member: {

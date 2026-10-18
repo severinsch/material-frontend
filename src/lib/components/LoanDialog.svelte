@@ -5,6 +5,7 @@
 		type IndividualItem,
 		type Loan,
 		type Material,
+		type Member,
 		type NewLoan
 	} from '#lib/api/index.js';
 	import { orNull, statusLabels, today } from '#lib/format.js';
@@ -16,11 +17,26 @@
 	import { Label } from '#lib/components/ui/label/index.js';
 	import Field from './Field.svelte';
 	import FormDialog from './FormDialog.svelte';
+	import SelectField from './SelectField.svelte';
 
 	const tenant = getTenant();
 	const api = $derived(tenant.api);
+	/** Editors lend to anyone; everyone else only to themselves. */
+	const canEdit = $derived(tenant.can('EDIT'));
 
-	let { materials, items }: { materials: Material[]; items: IndividualItem[] } = $props();
+	let {
+		materials,
+		items,
+		members
+	}: {
+		materials: Material[];
+		items: IndividualItem[];
+		/** The members editors can choose as borrower. */
+		members: Member[];
+	} = $props();
+
+	/** The borrower option for someone without an account, who is given by name (no user id). */
+	const OTHER = 'other';
 
 	let open = $state(false);
 	let id = $state<string | null>(null);
@@ -31,6 +47,22 @@
 	let ownPieces = $state<Record<string, number>>({});
 	let query = $state('');
 	let form = $state(formOf());
+	/** The edited loan's borrower, who stays selectable after leaving the tenant. */
+	let ownBorrower = $state<{ value: string; label: string } | null>(null);
+
+	const borrowerOptions = $derived([
+		...members
+			.filter((member) => !member.isDisabled && member.userId !== ownBorrower?.value)
+			.map((member) => ({ value: member.userId, label: member.displayName }))
+			.concat(ownBorrower ? [ownBorrower] : [])
+			.toSorted((a, b) => a.label.localeCompare(b.label)),
+		{ value: OTHER, label: 'Jemand ohne Konto' }
+	]);
+	const borrowerName = $derived(
+		form.borrowerId === OTHER
+			? form.borrower
+			: borrowerOptions.find((option) => option.value === form.borrowerId)?.label
+	);
 
 	const materialsById = $derived(new Map(materials.map((m) => [m.id, m])));
 	const itemsById = $derived(new Map(items.map((item) => [item.id, item])));
@@ -66,7 +98,8 @@
 	function formOf(loan?: Loan) {
 		const itemIds = loan?.itemIds ?? [];
 		return {
-			borrower: loan?.borrower ?? '',
+			borrowerId: loan ? (loan.borrowerId ?? OTHER) : canEdit ? OTHER : tenant.user.id,
+			borrower: loan && !loan.borrowerId ? loan.borrower : '',
 			lentAt: loan?.lentAt ?? today(),
 			dueAt: loan?.dueAt ?? '',
 			returnedAt: loan?.returnedAt ?? '',
@@ -87,6 +120,7 @@
 	export function show(loan?: Loan) {
 		id = loan?.id ?? null;
 		title = loan ? `Ausleihe an ${loan.borrower} bearbeiten` : 'Material ausleihen';
+		ownBorrower = loan?.borrowerId ? { value: loan.borrowerId, label: loan.borrower } : null;
 		ownItemIds = loan?.itemIds ?? [];
 		ownPieces = {};
 		if (loan && !loan.returnedAt) {
@@ -145,7 +179,8 @@
 
 	function save() {
 		const body: NewLoan = {
-			borrower: form.borrower,
+			borrowerId: form.borrowerId === OTHER ? null : form.borrowerId,
+			borrower: form.borrowerId === OTHER ? form.borrower : null,
 			lentAt: form.lentAt,
 			dueAt: orNull(form.dueAt),
 			returnedAt: orNull(form.returnedAt),
@@ -155,20 +190,32 @@
 		const request = id
 			? api.PUT('/loans/{id}', { params: { path: { id } }, body })
 			: api.POST('/loans', { body });
-		return mutate(request, `Ausleihe an ${form.borrower} gespeichert`);
+		return mutate(
+			request,
+			canEdit ? `Ausleihe an ${borrowerName} gespeichert` : 'Ausleihe gespeichert'
+		);
 	}
 </script>
 
 <FormDialog bind:open {title} submitLabel={id ? 'Speichern' : 'Ausleihen'} onsubmit={save}>
-	<Field label="Ausgeliehen an" id="loan-borrower">
-		<Input
-			id="loan-borrower"
-			bind:value={form.borrower}
-			required
-			maxlength={255}
-			placeholder="z. B. Stamm Nord"
-		/>
-	</Field>
+	{#if canEdit}
+		<Field label="Ausgeliehen an" id="loan-borrower">
+			<SelectField id="loan-borrower" bind:value={form.borrowerId} options={borrowerOptions} />
+		</Field>
+		{#if form.borrowerId === OTHER}
+			<Field label="Name" id="loan-borrower-name">
+				<Input
+					id="loan-borrower-name"
+					bind:value={form.borrower}
+					required
+					maxlength={255}
+					placeholder="z. B. Stamm Nord"
+				/>
+			</Field>
+		{/if}
+	{:else}
+		<p class="text-sm text-muted-foreground">Die Ausleihe läuft auf deinen Namen.</p>
+	{/if}
 	<div class="grid grid-cols-2 gap-4">
 		<Field label="Ausgeliehen am" id="loan-lent">
 			<Input id="loan-lent" type="date" required bind:value={form.lentAt} />

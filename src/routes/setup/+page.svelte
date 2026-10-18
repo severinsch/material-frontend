@@ -52,7 +52,7 @@
 		<Card.Title>Passwort festlegen</Card.Title>
 		{#if info}
 			<Card.Description>
-				Hallo {info.displayName}, dein Benutzername ist <strong>{info.username}</strong>.
+				Hallo {info.displayName}, leg hier das Passwort für dein Konto fest.
 			</Card.Description>
 		{/if}
 	</Card.Header>
@@ -83,8 +83,10 @@
 					</Alert.Root>
 				{/if}
 				<input type="hidden" name="token" value={token} />
-				<!-- Lets password managers store the password for the right account. -->
-				<input type="hidden" name="username" autocomplete="username" value={info.username} />
+				<!-- Visible, since password managers ignore hidden fields when storing the new login. -->
+				<Field label="Benutzername" id="username">
+					<Input id="username" type="text" autocomplete="username" readonly value={info.username} />
+				</Field>
 				<Field label="Neues Passwort (mindestens 12 Zeichen)" id="password">
 					<Input
 						id="password"

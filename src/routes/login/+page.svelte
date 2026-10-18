@@ -1,5 +1,4 @@
 <script lang="ts">
-	import { enhance } from '$app/forms';
 	import * as Alert from '#lib/components/ui/alert/index.js';
 	import { Button } from '#lib/components/ui/button/index.js';
 	import * as Card from '#lib/components/ui/card/index.js';
@@ -7,7 +6,6 @@
 	import Field from '#lib/components/Field.svelte';
 
 	let { form } = $props();
-	let submitting = $state(false);
 </script>
 
 <svelte:head><title>Anmelden – Materialverwaltung</title></svelte:head>
@@ -17,17 +15,8 @@
 		<Card.Title>Anmelden</Card.Title>
 	</Card.Header>
 	<Card.Content>
-		<form
-			method="POST"
-			class="grid gap-4"
-			use:enhance={() => {
-				submitting = true;
-				return async ({ update }) => {
-					await update({ reset: false });
-					submitting = false;
-				};
-			}}
-		>
+		<!-- Not enhanced: password managers reliably recognize a plain form submission as a login. -->
+		<form method="POST" class="grid gap-4">
 			{#if form?.message}
 				<Alert.Root variant="destructive">
 					<Alert.Description>{form.message}</Alert.Description>
@@ -37,6 +26,7 @@
 				<Input
 					id="username"
 					name="username"
+					type="text"
 					value={form?.username ?? ''}
 					autocomplete="username"
 					autocapitalize="none"
@@ -52,7 +42,7 @@
 					required
 				/>
 			</Field>
-			<Button type="submit" disabled={submitting}>Anmelden</Button>
+			<Button type="submit">Anmelden</Button>
 			<p class="text-sm text-muted-foreground">
 				Noch kein Konto oder Passwort vergessen? Frag die Admins deines Stamms nach einem Link.
 			</p>

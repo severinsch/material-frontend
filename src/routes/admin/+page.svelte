@@ -145,7 +145,7 @@
 		<div>
 			<h2 class="text-2xl font-bold tracking-tight">Konten</h2>
 			<p class="text-muted-foreground">
-				Konten werden in den Mitgliedern eines Stamms angelegt. Konten ohne Stamm bleiben, bis du
+				Konten werden bei den Mitgliedern eines Stamms angelegt. Konten ohne Stamm bleiben, bis du
 				sie löschst.
 			</p>
 		</div>

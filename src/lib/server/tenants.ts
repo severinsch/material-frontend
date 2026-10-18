@@ -13,12 +13,8 @@ export function rememberTenant(cookies: Cookies, tenant: UserTenant) {
 	});
 }
 
-export function lastTenantSlug(cookies: Cookies): string | undefined {
-	return cookies.get(LAST_TENANT_COOKIE);
-}
-
 /** Where to go without a tenant in the URL: the only tenant of the user, otherwise the one used last. */
 export function defaultTenant(user: CurrentUser, cookies: Cookies): UserTenant | undefined {
 	if (user.tenants.length === 1) return user.tenants[0];
-	return user.tenants.find((tenant) => tenant.slug === lastTenantSlug(cookies));
+	return user.tenants.find((tenant) => tenant.slug === cookies.get(LAST_TENANT_COOKIE));
 }

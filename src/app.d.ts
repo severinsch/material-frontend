@@ -6,7 +6,7 @@ declare global {
 	namespace App {
 		// interface Error {}
 		interface Locals {
-			/** The logged-in user, loaded by `hooks.server.ts` for every page request (not for the API proxy). */
+			/** The logged-in user, loaded by `hooks.server.ts` for every page request (always null in the API proxy). */
 			user: CurrentUser | null;
 		}
 		// interface PageData {}

@@ -1,17 +1,13 @@
-import { error, redirect } from '@sveltejs/kit';
-import { lastTenantSlug, rememberTenant } from '#lib/server/tenants.js';
+import { redirect } from '@sveltejs/kit';
+import { rememberTenant } from '#lib/server/tenants.js';
 import type { LayoutServerLoad } from './$types';
 
-export const load: LayoutServerLoad = ({ locals, params, cookies, url }) => {
-	// Reading the path makes this rerun on every navigation, with the user just loaded by the hook. So changes by an
-	// admin take effect without reloading the page, e.g. someone removed from the tenant is sent to `/`.
-	void url.pathname;
-	const user = locals.user!;
-	const tenant = user.tenants.find((tenant) => tenant.slug === params.tenant);
-	if (!tenant) {
-		if (lastTenantSlug(cookies) === params.tenant) redirect(303, '/?kein-zugriff');
-		error(404, 'Diesen Stamm gibt es nicht, oder du hast keinen Zugriff darauf.');
-	}
+/** Reruns with the root layout, i.e. on every navigation, so someone who lost access is sent to `/` right away. */
+export const load: LayoutServerLoad = async ({ parent, params, cookies }) => {
+	const { user } = await parent();
+	const tenant = user!.tenants.find((tenant) => tenant.slug === params.tenant);
+	// Unknown, deleted, renamed, or no (longer) access: `/` explains and lists the user's tenants.
+	if (!tenant) redirect(303, '/?kein-zugriff');
 	rememberTenant(cookies, tenant);
-	return { user, tenant };
+	return { tenant };
 };

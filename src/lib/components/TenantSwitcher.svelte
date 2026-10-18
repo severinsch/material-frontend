@@ -27,7 +27,11 @@
 			{#each tenants as tenant (tenant.id)}
 				<DropdownMenu.Item>
 					{#snippet child({ props })}
-						<a {...props} href="/{tenant.slug}">
+						<a
+							{...props}
+							href="/{tenant.slug}"
+							aria-current={tenant.id === current.id ? 'page' : undefined}
+						>
 							<CheckIcon class={tenant.id === current.id ? '' : 'invisible'} />
 							{tenant.name}
 						</a>

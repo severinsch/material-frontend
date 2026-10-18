@@ -14,7 +14,8 @@
 	{#if data.lostAccess}
 		<Alert.Root>
 			<Alert.Description>
-				Du hast keinen Zugriff mehr auf diesen Stamm, oder seine Adresse hat sich geändert.
+				Diesen Stamm gibt es nicht, oder du hast keinen Zugriff (mehr) darauf. Vielleicht hat sich
+				auch seine Adresse geändert.
 			</Alert.Description>
 		</Alert.Root>
 	{/if}
@@ -24,8 +25,9 @@
 			<Card.Header>
 				<Card.Title>Noch kein Zugriff</Card.Title>
 				<Card.Description>
-					Dein Konto gehört noch zu keinem Stamm. Frag die Admins deines Stamms, ob sie dich
-					hinzufügen.
+					{user.isPlatformAdmin
+						? 'Es gibt noch keinen Stamm. Leg in der Verwaltung den ersten an.'
+						: 'Dein Konto gehört noch zu keinem Stamm. Frag die Admins deines Stamms, ob sie dich hinzufügen.'}
 				</Card.Description>
 			</Card.Header>
 			{#if user.isPlatformAdmin}

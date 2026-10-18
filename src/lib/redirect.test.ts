@@ -18,6 +18,11 @@ describe('safeRedirectTarget', () => {
 			'/\n/evil.example/',
 			'\\\\evil.example/',
 			'javascript:alert(1)',
+			'/.//evil.example/',
+			'/..//evil.example/',
+			'/a/..//evil.example/',
+			'/%2e//evil.example/',
+			'/./\\evil.example/',
 			'stamm/materials'
 		]) {
 			expect(safeRedirectTarget(target), JSON.stringify(target)).toBe('/');

@@ -70,7 +70,7 @@ function loginOnUnauthorized(url: URL): Middleware {
 
 /**
  * Every request declares JSON, including bodyless DELETEs: SvelteKit treats requests without a content type like
- * form submissions and rejects them unless their origin matches, which breaks plain-HTTP deployments.
+ * form submissions and applies its form checks to them.
  */
 function client<Paths extends object>(baseUrl: string, fetch: typeof globalThis.fetch, url?: URL) {
 	const client = createClient<Paths>({

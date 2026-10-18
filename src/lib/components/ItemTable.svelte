@@ -47,8 +47,10 @@
 
 	/** Changes the status of [item] in one click, with "Undo" in the toast. */
 	function setStatus(item: IndividualItem, status: ItemStatus) {
+		// Bound now, so "Undo" in the toast still goes to this tenant after switching to another one.
+		const client = api;
 		const put = (status: ItemStatus) =>
-			api.PUT('/items/{id}', {
+			client.PUT('/items/{id}', {
 				params: { path: { id: item.id } },
 				body: {
 					materialId: item.materialId,

@@ -25,8 +25,10 @@
 	const items = $derived(new Map(data.items.map((item) => [item.id, item])));
 
 	function markReturned({ id, ...loan }: Loan) {
+		// Bound now, so "Undo" in the toast still goes to this tenant after switching to another one.
+		const client = api;
 		const setReturnedAt = (returnedAt: string | null) =>
-			api.PUT('/loans/{id}', { params: { path: { id } }, body: { ...loan, returnedAt } });
+			client.PUT('/loans/{id}', { params: { path: { id } }, body: { ...loan, returnedAt } });
 		return mutate(setReturnedAt(today()), `${loan.borrower} hat alles zurückgegeben`, {
 			undo: () => setReturnedAt(null)
 		});

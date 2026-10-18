@@ -87,7 +87,7 @@
 									name={member.displayName}
 									onedit={() => memberDialog.show(member)}
 									actions={[
-										...(member.username
+										...(member.username && !member.isDisabled
 											? [
 													{
 														label: member.setupPending

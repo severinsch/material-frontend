@@ -12,7 +12,8 @@
 			return data.tenant;
 		},
 		get user() {
-			return data.user;
+			// Pages always have a user, see hooks.server.ts.
+			return data.user!;
 		},
 		get api() {
 			return api;

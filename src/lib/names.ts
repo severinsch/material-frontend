@@ -16,7 +16,7 @@ function plain(text: string): string {
 		.replaceAll('ü', 'ue')
 		.replaceAll('ß', 'ss')
 		.normalize('NFKD')
-		.replace(/[̀-ͯ]/g, '');
+		.replace(/[\u0300-\u036f]/g, ''); // combining accents
 }
 
 /** A username for [displayName], e.g. "Max Müller" → "max.mueller". */

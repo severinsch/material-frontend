@@ -20,7 +20,8 @@
 	const mismatch = $derived(repeated !== '' && password !== repeated);
 
 	onMount(async () => {
-		token = decodeURIComponent(location.hash.slice(1));
+		// Tokens are base64url, so they need no decoding.
+		token = location.hash.slice(1);
 		if (!token) {
 			problem =
 				'Der Link ist unvollständig. Kopiere ihn noch einmal vollständig aus der Nachricht.';
@@ -28,15 +29,19 @@
 		}
 		const body = new FormData();
 		body.set('token', token);
-		const response = await fetch('?/inspect', {
-			method: 'POST',
-			body,
-			headers: { 'x-sveltekit-action': 'true' }
-		});
-		const result = deserialize(await response.text());
-		if (result.type === 'success') info = (result.data as { info: SetupInfo }).info;
-		else if (result.type === 'failure') problem = (result.data as { message: string }).message;
-		else problem = 'Der Link konnte nicht geprüft werden.';
+		try {
+			const response = await fetch('?/inspect', {
+				method: 'POST',
+				body,
+				headers: { accept: 'application/json', 'x-sveltekit-action': 'true' }
+			});
+			const result = deserialize(await response.text());
+			if (result.type === 'success') info = (result.data as { info: SetupInfo }).info;
+			else if (result.type === 'failure') problem = (result.data as { message: string }).message;
+			else problem = 'Der Link konnte nicht geprüft werden.';
+		} catch {
+			problem = 'Der Link konnte nicht geprüft werden.';
+		}
 	});
 </script>
 

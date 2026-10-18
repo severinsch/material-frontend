@@ -9,8 +9,9 @@ export const load: PageServerLoad = () => redirect(303, '/');
 export const actions: Actions = {
 	default: async ({ cookies }) => {
 		const token = sessionToken(cookies);
-		if (token) await callApi('auth/logout', { method: 'POST', token });
+		// The cookie goes in any case, even if the API can't end the session now (it expires on its own).
 		endSession(cookies);
+		if (token) await callApi('auth/logout', { method: 'POST', token }).catch(() => undefined);
 		redirect(303, '/login');
 	}
 };

@@ -10,11 +10,12 @@ const publicPaths = ['/login', '/setup'];
 
 /**
  * Loads the user for every page request and sends visitors without a session to the login page. In the hook rather
- * than a layout load, so it also covers `+server.ts` routes and child loads running in parallel. The API proxy
+ * than a layout load, so it also covers child loads running in parallel and future `+server.ts` routes. The API proxy
  * (`/api`) is left out: the API checks the session itself.
  */
 export const handle: Handle = async ({ event, resolve }) => {
 	const { pathname } = event.url;
+	event.locals.user = null;
 	if (!pathname.startsWith('/api/')) {
 		event.locals.user = await currentUser(event);
 		const isPublic = publicPaths.some(

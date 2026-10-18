@@ -6,6 +6,7 @@ import type { PageServerLoad } from './$types';
 export const load: PageServerLoad = ({ locals, cookies, params, url }) => {
 	const tenant = defaultTenant(locals.user!, cookies);
 	if (!tenant) redirect(303, '/');
-	const rest = params.rest ? `/${params.rest}` : '';
+	// Params are decoded; encode the segments again for the Location header.
+	const rest = params.rest ? `/${params.rest.split('/').map(encodeURIComponent).join('/')}` : '';
 	redirect(303, `/${tenant.slug}/${params.page}${rest}${url.search}`);
 };

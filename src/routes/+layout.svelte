@@ -18,8 +18,7 @@
 
 	/** The tenant of the current page, if any (set by `[tenant]/+layout.server.ts`). */
 	const tenant = $derived(page.data.tenant as UserTenant | undefined);
-	/** Fresher than `data.user` inside a tenant, whose layout reloads it on every navigation. */
-	const user = $derived(page.data.user ?? data.user);
+	const user = $derived(data.user);
 
 	const pages: { path: string; label: string; icon: Component }[] = [
 		{ path: '', label: 'Materialien', icon: PackageIcon },

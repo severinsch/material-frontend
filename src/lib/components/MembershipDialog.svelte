@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { toast } from 'svelte-sonner';
 	import { api, mutate, type Tenant, type TenantRole, type User } from '#lib/api/index.js';
 	import { optionsOf } from '#lib/format.js';
 	import { roleDescriptions, roleLabels } from '#lib/permissions.js';
@@ -29,7 +30,10 @@
 	}
 
 	async function save() {
-		if (!form.tenantId) return false;
+		if (!form.tenantId) {
+			toast.error('Wähle einen Stamm aus.');
+			return false;
+		}
 		const tenant = tenants.find((t) => t.id === form.tenantId)!;
 		return mutate(
 			api.PUT('/tenants/{tenantId}/members/{userId}', {
@@ -42,9 +46,13 @@
 </script>
 
 <FormDialog bind:open title="{user?.displayName} zu einem Stamm hinzufügen" onsubmit={save}>
-	<Field label="Stamm" id="membership-tenant">
-		<SelectField id="membership-tenant" bind:value={form.tenantId} {options} />
-	</Field>
+	{#if options.length === 0}
+		<p class="text-sm text-muted-foreground">{user?.displayName} gehört schon zu allen Stämmen.</p>
+	{:else}
+		<Field label="Stamm" id="membership-tenant">
+			<SelectField id="membership-tenant" bind:value={form.tenantId} {options} />
+		</Field>
+	{/if}
 	<Field label="Rolle" id="membership-role">
 		<SelectField id="membership-role" bind:value={form.role} options={optionsOf(roleLabels)} />
 		<p class="text-sm text-muted-foreground">{roleDescriptions[form.role]}</p>

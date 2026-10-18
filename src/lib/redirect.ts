@@ -8,9 +8,11 @@ export function loginPath(url: URL = new URL(location.href)): string {
  * lead elsewhere, like `//host`, `/\host` or absolute URLs, since the parameter comes from a link anyone can craft.
  */
 export function safeRedirectTarget(target: string | null): string {
-	if (!target?.startsWith('/') || target.startsWith('//') || target.startsWith('/\\')) return '/';
-	// URL parsing ignores tabs and newlines and treats backslashes like slashes, so check where it really leads.
+	if (!target?.startsWith('/')) return '/';
+	// URL parsing ignores tabs and newlines, treats backslashes like slashes and resolves dot segments, so check the
+	// result: `/.//host` becomes `//host`, which browsers read as another site.
 	const base = 'http://redirect.invalid';
 	const url = new URL(target, base);
-	return url.origin === base ? url.pathname + url.search + url.hash : '/';
+	const path = url.pathname + url.search + url.hash;
+	return url.origin === base && !path.startsWith('//') ? path : '/';
 }

@@ -29,8 +29,9 @@
 		const client = api;
 		const setReturnedAt = (returnedAt: string | null) =>
 			client.PUT('/loans/{id}', { params: { path: { id } }, body: { ...loan, returnedAt } });
+		// Only editors can reopen a returned loan.
 		return mutate(setReturnedAt(today()), `${loan.borrower} hat alles zurückgegeben`, {
-			undo: () => setReturnedAt(null)
+			undo: canEdit ? () => setReturnedAt(null) : undefined
 		});
 	}
 

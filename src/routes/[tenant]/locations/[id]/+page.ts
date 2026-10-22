@@ -1,4 +1,4 @@
-import { createTenantApi, unwrap, type BulkMaterial } from '#lib/api/index.js';
+import { createTenantApi, unwrap } from '#lib/api/index.js';
 import type { PageLoad } from './$types';
 
 export const load: PageLoad = async ({ fetch, url, params, parent }) => {
@@ -12,8 +12,13 @@ export const load: PageLoad = async ({ fetch, url, params, parent }) => {
 		location,
 		/** All materials, for the names of the items. */
 		materials,
-		bulkMaterials: materials.filter(
-			(m): m is BulkMaterial => m.trackingType === 'BULK' && m.location?.id === location.id
+		/** Bulk variants stored here, each with its material; variants of one material may be stored elsewhere. */
+		bulkVariants: materials.flatMap((material) =>
+			material.trackingType === 'BULK'
+				? material.variants
+						.filter((variant) => variant.location?.id === location.id)
+						.map((variant) => ({ material, variant }))
+				: []
 		),
 		items: items.filter((item) => item.storageLocation?.id === location.id)
 	};

@@ -2,7 +2,7 @@
 	import PlusIcon from '@lucide/svelte/icons/plus';
 	import Trash2Icon from '@lucide/svelte/icons/trash-2';
 	import { mutate, type Loan } from '#lib/api/index.js';
-	import { formatDate, today } from '#lib/format.js';
+	import { formatDate, today, variantsById } from '#lib/format.js';
 	import { isOverdue, loanContents } from '#lib/loans.js';
 	import { getTenant } from '#lib/tenant.js';
 	import { Badge } from '#lib/components/ui/badge/index.js';
@@ -21,7 +21,7 @@
 	let loanDialog: LoanDialog;
 	let confirmDelete: ConfirmDelete;
 
-	const materials = $derived(new Map(data.materials.map((m) => [m.id, m])));
+	const variants = $derived(variantsById(data.materials));
 	const items = $derived(new Map(data.items.map((item) => [item.id, item])));
 
 	function markReturned({ id, ...loan }: Loan) {
@@ -90,7 +90,7 @@
 			</Table.Header>
 			<Table.Body>
 				{#each data.loans as loan (loan.id)}
-					{@const contents = loanContents(loan, materials, items)}
+					{@const contents = loanContents(loan, variants, items)}
 					<Table.Row>
 						<Table.Cell class="whitespace-normal">
 							<span class="font-medium">{loan.borrower}</span>

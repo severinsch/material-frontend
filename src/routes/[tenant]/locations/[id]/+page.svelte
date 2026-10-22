@@ -1,7 +1,13 @@
 <script lang="ts">
 	import ArrowLeftIcon from '@lucide/svelte/icons/arrow-left';
 	import PencilIcon from '@lucide/svelte/icons/pencil';
-	import { conditionLabels, statusLabels } from '#lib/format.js';
+	import {
+		conditionLabels,
+		itemNameOf,
+		statusLabels,
+		variantName,
+		variantsById
+	} from '#lib/format.js';
 	import { availableNow } from '#lib/settings.svelte.js';
 	import { getTenant } from '#lib/tenant.js';
 	import { Badge } from '#lib/components/ui/badge/index.js';
@@ -16,27 +22,32 @@
 
 	let locationDialog: LocationDialog;
 
-	const materialNames = $derived(new Map(data.materials.map((m) => [m.id, m.name])));
+	const variants = $derived(variantsById(data.materials));
 
 	/** The contents grouped by place in the location, sorted by place; things without a place come last. */
 	const places = $derived.by(() => {
-		const byPlace: Record<string, { bulk: typeof data.bulkMaterials; items: typeof data.items }> =
-			{};
+		const byPlace: Record<
+			string,
+			{ bulk: (typeof data.bulkVariants)[number][]; items: typeof data.items }
+		> = {};
 		const placeOf = (detail: string | null | undefined) =>
 			(byPlace[detail?.trim() ?? ''] ??= { bulk: [], items: [] });
-		for (const material of data.bulkMaterials) placeOf(material.locationDetail).bulk.push(material);
+		for (const stored of data.bulkVariants)
+			placeOf(stored.variant.locationDetail).bulk.push(stored);
 		for (const item of data.items) placeOf(item.locationDetail).items.push(item);
 
 		const compare = (a: string, b: string) => a.localeCompare(b, undefined, { numeric: true });
 		return Object.entries(byPlace)
 			.map(([detail, { bulk, items }]) => ({
 				detail,
-				bulk: bulk.toSorted((a, b) => compare(a.name, b.name)),
-				items: items.toSorted(
-					(a, b) =>
-						compare(materialNames.get(a.materialId) ?? '', materialNames.get(b.materialId) ?? '') ||
-						compare(a.identifier, b.identifier)
-				)
+				bulk: bulk
+					.map(({ material, variant }) => ({
+						material,
+						variant,
+						name: variantName(material, variant)
+					}))
+					.sort((a, b) => compare(a.name, b.name)),
+				items: items.toSorted((a, b) => compare(itemNameOf(variants, a), itemNameOf(variants, b)))
 			}))
 			.sort((a, b) => Number(!a.detail) - Number(!b.detail) || compare(a.detail, b.detail));
 	});
@@ -64,12 +75,12 @@
 			{/if}
 		</div>
 		<p class="text-sm">
-			{data.bulkMaterials.length}
-			{data.bulkMaterials.length === 1 ? 'Material' : 'Materialien'} nach Menge ·
+			{data.bulkVariants.length}
+			{data.bulkVariants.length === 1 ? 'Material' : 'Materialien'} nach Menge ·
 			{data.items.length}
 			{data.items.length === 1 ? 'Gegenstand' : 'Gegenstände'}
 		</p>
-		{#if data.bulkMaterials.length > 0}<LoanedToggle />{/if}
+		{#if data.bulkVariants.length > 0}<LoanedToggle />{/if}
 	</div>
 
 	{#each places as place (place.detail)}
@@ -78,14 +89,14 @@
 				{place.detail || 'Ohne Platzangabe'}
 			</h2>
 			<ul class="divide-y rounded-md border">
-				{#each place.bulk as material (material.id)}
+				{#each place.bulk as { material, variant, name } (variant.id)}
 					<li class="flex items-center justify-between gap-4 px-3 py-2">
 						<a href={tenant.href(`/materials/${material.id}`)} class="font-medium hover:underline">
-							{material.name}
+							{name}
 						</a>
 						<span class="text-sm text-muted-foreground tabular-nums">
-							{availableNow(material)} verfügbar{material.damagedCount > 0
-								? ` · ${material.damagedCount} beschädigt`
+							{availableNow(variant)} verfügbar{variant.damagedCount > 0
+								? ` · ${variant.damagedCount} beschädigt`
 								: ''}
 						</span>
 					</li>
@@ -96,8 +107,7 @@
 							href={tenant.href(`/materials/${item.materialId}`)}
 							class="font-medium hover:underline"
 						>
-							{materialNames.get(item.materialId)}
-							{item.identifier}
+							{itemNameOf(variants, item)}
 						</a>
 						<span class="flex flex-wrap items-center gap-1">
 							{#if item.onLoan}<Badge variant="secondary">ausgeliehen</Badge>{/if}

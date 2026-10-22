@@ -1,14 +1,17 @@
 <script lang="ts">
 	import CheckIcon from '@lucide/svelte/icons/check';
 	import ChevronsUpDownIcon from '@lucide/svelte/icons/chevrons-up-down';
+	import { computeCommandScore } from 'bits-ui';
 	import { tick } from 'svelte';
 	import type { Material } from '#lib/api/index.js';
+	import { variantName } from '#lib/format.js';
 	import { Button } from '#lib/components/ui/button/index.js';
 	import * as Command from '#lib/components/ui/command/index.js';
 	import * as Popover from '#lib/components/ui/popover/index.js';
 
 	let {
-		value = $bindable(),
+		materialId = $bindable(),
+		variantId = $bindable(),
 		materials,
 		id,
 		invalid = false,
@@ -16,7 +19,9 @@
 		'aria-describedby': ariaDescribedBy
 	}: {
 		/** The selected material id, or '' for none. */
-		value: string;
+		materialId: string;
+		/** The selected variant, or null for any variant of the material. */
+		variantId: string | null;
 		materials: Material[];
 		id?: string;
 		invalid?: boolean;
@@ -28,11 +33,68 @@
 	let open = $state(false);
 	let trigger = $state<HTMLElement | null>(null);
 
-	const sorted = $derived(materials.toSorted((a, b) => a.name.localeCompare(b.name)));
-	const selected = $derived(materials.find((material) => material.id === value));
+	/**
+	 * A material with several variants is offered as "any variant" followed by its variants; others once, as the
+	 * material. The values are unique keys; the search filters on the names, given as keywords.
+	 */
+	const entries = $derived(
+		materials
+			.toSorted((a, b) => a.name.localeCompare(b.name))
+			.flatMap((material) =>
+				material.variants.length > 1
+					? [
+							{
+								key: material.id,
+								materialId: material.id,
+								variantId: null,
+								name: `${material.name} (beliebige Variante)`,
+								label: `${material.name} (beliebige Variante)`,
+								indented: false
+							},
+							...material.variants.map((variant) => ({
+								key: `${material.id}/${variant.id}`,
+								materialId: material.id,
+								variantId: variant.id,
+								name: variantName(material, variant),
+								label: variant.name ?? '',
+								indented: true
+							}))
+						]
+					: [
+							{
+								key: material.id,
+								materialId: material.id,
+								variantId: null,
+								name: material.name,
+								label: material.name,
+								indented: false
+							}
+						]
+			)
+	);
+	/**
+	 * The selection's name. An option for a specific variant of a material that has only this variant left is shown
+	 * as the material, like "any variant", which means the same then.
+	 */
+	const selectedName = $derived.by(() => {
+		const material = materials.find((m) => m.id === materialId);
+		if (!material) return undefined;
+		const variant = material.variants.find((v) => v.id === variantId);
+		if (variant) return variantName(material, variant);
+		return material.variants.length > 1 ? `${material.name} (beliebige Variante)` : material.name;
+	});
 
-	async function choose(materialId: string) {
-		value = materialId;
+	function isSelected(entry: (typeof entries)[number]) {
+		const material = materials.find((m) => m.id === entry.materialId);
+		return (
+			entry.materialId === materialId &&
+			(entry.variantId === variantId || (material?.variants.length ?? 0) <= 1)
+		);
+	}
+
+	async function choose(entry: (typeof entries)[number]) {
+		materialId = entry.materialId;
+		variantId = entry.variantId;
 		open = false;
 		await tick();
 		trigger?.focus();
@@ -49,28 +111,36 @@
 				role="combobox"
 				aria-expanded={open}
 				aria-invalid={invalid || undefined}
-				aria-label={ariaLabel && `${ariaLabel}: ${selected?.name ?? 'kein Material gewählt'}`}
+				aria-label={ariaLabel && `${ariaLabel}: ${selectedName ?? 'kein Material gewählt'}`}
 				aria-describedby={ariaDescribedBy}
 				class="w-full justify-between font-normal"
 			>
-				<span class={['truncate', !selected && 'text-muted-foreground']}>
-					{selected?.name ?? 'Material wählen…'}
+				<span class={['truncate', !selectedName && 'text-muted-foreground']}>
+					{selectedName ?? 'Material wählen…'}
 				</span>
 				<ChevronsUpDownIcon class="opacity-50" />
 			</Button>
 		{/snippet}
 	</Popover.Trigger>
 	<Popover.Content class="w-(--bits-popover-anchor-width) min-w-60 p-0" align="start">
-		<Command.Root>
+		<Command.Root
+			filter={(_, search, keywords) => computeCommandScore(keywords?.[0] ?? '', search)}
+		>
 			<Command.Input placeholder="Material suchen…" />
 			<Command.List>
 				<Command.Empty>Kein Material gefunden.</Command.Empty>
 				<Command.Group>
-					{#each sorted as material (material.id)}
-						<!-- Names are unique, so they serve as the value the search filters on. -->
-						<Command.Item value={material.name} onSelect={() => choose(material.id)}>
-							<CheckIcon class={material.id === value ? '' : 'text-transparent'} />
-							{material.name}
+					{#each entries as entry (entry.key)}
+						<!-- Variants show their own name, but are found and announced by the full one, e.g. "Seil 15". -->
+						<Command.Item
+							value={entry.key}
+							keywords={[entry.name]}
+							aria-label={entry.name}
+							class={entry.indented ? 'pl-6' : ''}
+							onSelect={() => choose(entry)}
+						>
+							<CheckIcon class={isSelected(entry) ? '' : 'text-transparent'} />
+							{entry.label}
 						</Command.Item>
 					{/each}
 				</Command.Group>

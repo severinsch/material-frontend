@@ -11,6 +11,7 @@
 		submitLabel = 'Speichern',
 		destructive = false,
 		onsubmit,
+		class: className,
 		children
 	}: {
 		open: boolean;
@@ -20,6 +21,8 @@
 		destructive?: boolean;
 		/** Returns whether the dialog can close. */
 		onsubmit: () => Promise<boolean>;
+		/** Classes of the dialog, e.g. to make it wider. */
+		class?: string;
 		children?: Snippet;
 	} = $props();
 
@@ -37,7 +40,7 @@
 </script>
 
 <Dialog.Root bind:open>
-	<Dialog.Content class="max-h-[90vh] overflow-y-auto">
+	<Dialog.Content class="max-h-[90vh] overflow-y-auto {className ?? ''}">
 		<form onsubmit={submit} class="grid gap-4">
 			<Dialog.Header>
 				<Dialog.Title>{title}</Dialog.Title>

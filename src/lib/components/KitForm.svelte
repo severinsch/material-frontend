@@ -34,7 +34,11 @@
 			// Alternatives are kept in priority order, the first one is used first.
 			options: group.options
 				.toSorted((a, b) => a.priority - b.priority)
-				.map(({ materialId, unitValue }) => ({ materialId, unitValue }))
+				.map(({ materialId, variantId, unitValue }) => ({
+					materialId,
+					variantId: variantId ?? null,
+					unitValue
+				}))
 		}))
 	});
 	let saving = $state(false);
@@ -49,8 +53,17 @@
 		if (group.options.some((option) => !option.materialId)) {
 			return 'Wähle für jede Alternative ein Material.';
 		}
-		const ids = group.options.map((option) => option.materialId);
-		if (new Set(ids).size < ids.length) return 'Jedes Material kann pro Teil nur einmal vorkommen.';
+		// As in the API: "any variant" covers the specific ones, so a material is either one option or one per variant.
+		const byMaterial = Map.groupBy(group.options, (option) => option.materialId);
+		const overlapping = [...byMaterial.values()].some(
+			(same) =>
+				same.length > 1 &&
+				(same.some((option) => !option.variantId) ||
+					new Set(same.map((option) => option.variantId)).size < same.length)
+		);
+		if (overlapping) {
+			return 'Die Materialien eines Teils überschneiden sich: Nimm ein Material entweder einmal mit beliebiger Variante auf oder mit unterschiedlichen, bestimmten Varianten.';
+		}
 	}
 
 	/** The validation error of a group's amounts, if any. */
@@ -92,7 +105,7 @@
 	);
 
 	function newOption() {
-		return { materialId: '', unitValue: 1 };
+		return { materialId: '', variantId: null as string | null, unitValue: 1 };
 	}
 
 	function moveUp<T>(list: T[], index: number) {
@@ -159,6 +172,11 @@
 			Kohtenblätter). Ein Teil kann mehrere Ausführungen haben (z. B. Einbein mit 1 und Dreibein mit
 			3 Jurtenstangen), von denen in der Packliste eine gewählt wird. Optionale Teile haben eine
 			Ausführung „ohne“ mit 0 Einheiten.
+		</p>
+		<p class="text-sm text-muted-foreground">
+			Bei Materialien mit Varianten (z. B. Seil mit 10 m, 15 m und 20 m) zählt „beliebige Variante“
+			jede Variante mit denselben Einheiten, auch später angelegte. Zählen die Varianten
+			unterschiedlich (z. B. Kanister mit 10 L und 20 L), nimm sie einzeln als Alternativen auf.
 		</p>
 	</div>
 
@@ -278,7 +296,8 @@
 						<div class="flex items-center gap-2">
 							<div class="min-w-0 flex-1">
 								<MaterialPicker
-									bind:value={option.materialId}
+									bind:materialId={option.materialId}
+									bind:variantId={option.variantId}
 									{materials}
 									aria-label="Material für {optionName}"
 									aria-describedby={error ? `group-${g}-error` : undefined}

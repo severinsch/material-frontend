@@ -1,22 +1,30 @@
 <script lang="ts">
-	import { mutate, type Purchase } from '#lib/api/index.js';
-	import { orNull, today } from '#lib/format.js';
+	import { mutate, type BulkMaterial, type NewPurchase, type Purchase } from '#lib/api/index.js';
+	import { orNull, today, variantName } from '#lib/format.js';
 	import { getTenant } from '#lib/tenant.js';
 	import { Input } from '#lib/components/ui/input/index.js';
 	import Field from './Field.svelte';
 	import FormDialog from './FormDialog.svelte';
+	import SelectField from './SelectField.svelte';
 
 	const tenant = getTenant();
 	const api = $derived(tenant.api);
 
-	let { material }: { material: { id: string; name: string } } = $props();
+	let { material }: { material: BulkMaterial } = $props();
 
 	let open = $state(false);
 	let id = $state<string | null>(null);
 	let form = $state(formOf());
 
+	/** The purchased variant's name, e.g. "Seil 15 m", or just the material's name. */
+	const name = $derived(
+		variantName(material, material.variants.find((v) => v.id === form.variantId) ?? { name: null })
+	);
+
 	function formOf(purchase?: Purchase) {
 		return {
+			// A purchase stays with its variant; new ones choose it if there are several.
+			variantId: purchase?.variantId ?? material.variants[0]?.id ?? '',
 			quantity: purchase?.quantity ?? 1,
 			unitPrice: purchase?.unitPrice ?? null,
 			purchaseDate: purchase?.purchaseDate ?? today(),
@@ -32,9 +40,8 @@
 	}
 
 	function save() {
-		const body = {
+		const body: NewPurchase = {
 			...form,
-			materialId: material.id,
 			purchaseDate: orNull(form.purchaseDate),
 			note: orNull(form.note)
 		};
@@ -47,13 +54,22 @@
 
 <FormDialog
 	bind:open
-	title={id ? `Einkauf von ${material.name} bearbeiten` : `Einkauf von ${material.name} erfassen`}
+	title={id ? `Einkauf von ${name} bearbeiten` : `Einkauf von ${material.name} erfassen`}
 	submitLabel={id ? 'Speichern' : 'Erfassen'}
 	description={id
 		? 'Der Bestand wird um die Differenz der Mengen angepasst.'
-		: `Die Menge wird zum Bestand von ${material.name} addiert.`}
+		: `Die Menge wird zum Bestand von ${name} addiert.`}
 	onsubmit={save}
 >
+	{#if !id && material.variants.length > 1}
+		<Field label="Variante" id="purchase-variant">
+			<SelectField
+				id="purchase-variant"
+				bind:value={form.variantId}
+				options={material.variants.map((v) => ({ value: v.id, label: v.name ?? '' }))}
+			/>
+		</Field>
+	{/if}
 	<div class="grid grid-cols-2 gap-4">
 		<Field label="Menge" id="purchase-quantity">
 			<Input id="purchase-quantity" type="number" min={1} required bind:value={form.quantity} />

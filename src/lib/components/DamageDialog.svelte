@@ -46,11 +46,11 @@
 		};
 	}
 
-	/** Opens the dialog to edit [report], or to report new damage on [forItem]. */
-	export function show(forItem: IndividualItem, materialName: string, report?: DamageReport) {
+	/** Opens the dialog to edit [report], or to report new damage on [forItem], which is called [name]. */
+	export function show(forItem: IndividualItem, name: string, report?: DamageReport) {
 		id = report?.id ?? null;
 		item = forItem;
-		itemName = `${materialName} ${forItem.identifier}`;
+		itemName = name;
 		form = formOf(report);
 		wasResolved = form.isResolved;
 		// Resolving a report usually means the item is repaired; new damage is often minor.

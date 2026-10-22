@@ -1,6 +1,12 @@
 <script lang="ts">
 	import type { Snippet } from 'svelte';
-	import { conditionLabels, formatDate, statusLabels } from '#lib/format.js';
+	import {
+		conditionLabels,
+		formatDate,
+		itemNameOf,
+		statusLabels,
+		variantsById
+	} from '#lib/format.js';
 	import { isOverdue, loanContents } from '#lib/loans.js';
 	import { getTenant } from '#lib/tenant.js';
 	import { Badge } from '#lib/components/ui/badge/index.js';
@@ -10,7 +16,7 @@
 
 	const tenant = getTenant();
 
-	const materials = $derived(new Map(data.materials.map((m) => [m.id, m])));
+	const variants = $derived(variantsById(data.materials));
 	const items = $derived(new Map(data.items.map((item) => [item.id, item])));
 
 	const overdueLoans = $derived(data.loans.filter(isOverdue));
@@ -29,9 +35,7 @@
 
 	function itemName(itemId: string) {
 		const item = items.get(itemId);
-		return item
-			? `${materials.get(item.materialId)?.name} ${item.identifier}`
-			: 'Unbekannter Gegenstand';
+		return item ? itemNameOf(variants, item) : 'Unbekannter Gegenstand';
 	}
 </script>
 
@@ -75,7 +79,7 @@
 						<span class="font-medium">{loan.borrower}</span>
 						<Badge variant="destructive">überfällig seit {formatDate(loan.dueAt)}</Badge>
 					</div>
-					<p class="text-muted-foreground">{loanContents(loan, materials, items)}</p>
+					<p class="text-muted-foreground">{loanContents(loan, variants, items)}</p>
 				</li>
 			{/each}
 		{/snippet}
@@ -96,7 +100,7 @@
 							{loan.dueAt ? `Rückgabe bis ${formatDate(loan.dueAt)}` : 'ohne Rückgabedatum'}
 						</span>
 					</div>
-					<p class="text-muted-foreground">{loanContents(loan, materials, items)}</p>
+					<p class="text-muted-foreground">{loanContents(loan, variants, items)}</p>
 				</li>
 			{/each}
 		{/snippet}

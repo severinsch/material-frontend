@@ -10,9 +10,9 @@
 	import { toast } from 'svelte-sonner';
 	import { afterNavigate, replaceState } from '$app/navigation';
 	import { page } from '$app/state';
-	import type { Kit, KitGroup, KitGroupAmount } from '#lib/api/index.js';
-	import { formatDate, today } from '#lib/format.js';
-	import { allocate, needsOf } from '#lib/kits/allocate.js';
+	import type { Kit, KitGroup, KitGroupAmount, KitGroupOption } from '#lib/api/index.js';
+	import { formatDate, today, variantName, variantsById } from '#lib/format.js';
+	import { allocate, needsOf, type MaterialNeed } from '#lib/kits/allocate.js';
 	import {
 		byPlace,
 		combineLines,
@@ -20,6 +20,7 @@
 		groupLabel,
 		hasChoices,
 		lineLabel,
+		NO_LOCATION,
 		newLine,
 		parseSelection,
 		placeOf,
@@ -63,6 +64,11 @@
 	});
 
 	const materials = $derived(new Map(data.materials.map((material) => [material.id, material])));
+	const variants = $derived(variantsById(data.materials));
+	/** The variant ids of each material, by material id. */
+	const variantIds = $derived(
+		new Map(data.materials.map((material) => [material.id, material.variants.map((v) => v.id)]))
+	);
 	const kits = $derived(new Map(data.kits.map((kit) => [kit.id, kit])));
 	const kitCount = $derived(lines.reduce((sum, line) => sum + line.quantity, 0));
 
@@ -73,30 +79,42 @@
 			return kit ? [{ ...line, kit }] : [];
 		})
 	);
-	const labels = $derived(combined.map((line) => lineLabel(line, nameOf)));
+	const labels = $derived(combined.map((line) => lineLabel(line, plainName)));
 
+	/** Usable pieces per variant id. */
 	const stock = $derived(
-		new Map(data.materials.map((material) => [material.id, availableNow(material)]))
+		new Map([...variants].map(([id, { variant }]) => [id, availableNow(variant)]))
 	);
-	const allocation = $derived(allocate(combined, stock));
-	const needs = $derived(
-		needsOf(allocation.assignments, stock)
+	const allocation = $derived(allocate(combined, stock, variantIds));
+	/**
+	 * Sorted by material; the needs of a material's specific variants come in the order of its variants, directly
+	 * before the need for any of its variants, which names them as exceptions.
+	 */
+	const needs = $derived.by(() => {
+		const all = needsOf(allocation.assignments, stock, variantIds);
+		return all
 			.map((need) => {
 				const material = materials.get(need.materialId);
+				const variantRank = material?.variants.findIndex((v) => v.id === need.variantId) ?? -1;
+				// Pieces that are all missing come from no variant; any of them may be used.
+				const from =
+					need.variantIds.length > 0 ? need.variantIds : (variantIds.get(need.materialId) ?? []);
 				return {
 					...need,
-					name: nameOf(need.materialId),
-					missing: Math.max(0, need.required - need.available),
+					key: `${need.materialId}/${need.variantId ?? '*'}`,
+					name: needName(need, all),
+					materialName: material?.name ?? '',
+					rank: need.variantId ? variantRank : Infinity,
 					place: material
-						? placeOf(material, data.items, settings.subtractLoaned)
-						: { location: 'Ohne Lagerort', detail: '' }
+						? placeOf(material, from, data.items, settings.subtractLoaned)
+						: { location: NO_LOCATION, detail: '' }
 				};
 			})
-			.sort((a, b) => a.name.localeCompare(b.name))
-	);
+			.sort((a, b) => a.materialName.localeCompare(b.materialName) || a.rank - b.rank);
+	});
 	const shortages = $derived(
 		allocation.shortages.map((shortage) =>
-			describeShortage(shortage, combined[shortage.line], nameOf)
+			describeShortage(shortage, combined[shortage.line].kit, labels[shortage.line], optionName)
 		)
 	);
 	/** Needs grouped by storage location for the printed list. */
@@ -110,13 +128,43 @@
 		combined.map((line, index) => `${line.quantity}× ${labels[index]}`).join(', ')
 	);
 
-	function availableOf(materialId: string) {
-		const material = materials.get(materialId);
-		return material ? availableNow(material) : 0;
+	type OptionRef = Pick<KitGroupOption, 'materialId' | 'variantId'>;
+
+	/** Usable pieces for [option]: of its variant, or of all variants of its material. */
+	function availableOf(option: OptionRef) {
+		const ids = option.variantId ? [option.variantId] : (variantIds.get(option.materialId) ?? []);
+		return ids.reduce((sum, id) => sum + (stock.get(id) ?? 0), 0);
 	}
 
-	function nameOf(materialId: string) {
-		return materials.get(materialId)?.name ?? 'Unbekanntes Material';
+	/** The name of [option] for labels: "Seil 15 m" for a variant, otherwise the material's name. */
+	function plainName(option: OptionRef) {
+		const found = option.variantId ? variants.get(option.variantId) : undefined;
+		if (found) return variantName(found.material, found.variant);
+		return materials.get(option.materialId)?.name ?? 'Unbekanntes Material';
+	}
+
+	/** The name of [option], e.g. "Seil 15 m", or "Seil (beliebig)" for any of several variants. */
+	function optionName(option: OptionRef) {
+		const material = materials.get(option.materialId);
+		return !option.variantId && material && material.variants.length > 1
+			? `${material.name} (beliebig)`
+			: plainName(option);
+	}
+
+	/**
+	 * The name of a need: its variant, or for any variant e.g. "Seil (beliebig, außer den 2× 20 m)", naming the
+	 * pieces of specific variants in [all] needs that are packed separately.
+	 */
+	function needName(need: MaterialNeed, all: MaterialNeed[]) {
+		if (need.variantId) return plainName(need);
+		const material = materials.get(need.materialId);
+		const specific = all.flatMap((other) =>
+			other.materialId === need.materialId && other.variantId
+				? [`${other.required}× ${variants.get(other.variantId)?.variant.name ?? '?'}`]
+				: []
+		);
+		const except = specific.length > 0 ? `, außer den ${specific.join(', ')}` : '';
+		return `${material?.name ?? 'Unbekanntes Material'} (beliebig${except})`;
 	}
 
 	function missingText(count: number) {
@@ -157,7 +205,7 @@
 		if (requiredUnits === 0) return label ?? '';
 		const [single] = group.options.length === 1 ? group.options : [];
 		const count = single
-			? `${piecesFor(requiredUnits, single.unitValue)}× ${nameOf(single.materialId)}`
+			? `${piecesFor(requiredUnits, single.unitValue)}× ${optionName(single)}`
 			: `${requiredUnits} Einheiten`;
 		return `${label} · ${count}`;
 	}
@@ -213,8 +261,8 @@
 	}
 </script>
 
-{#snippet availability(materialId: string, needed = 0)}
-	{@const available = availableOf(materialId)}
+{#snippet availability(option: OptionRef, needed = 0)}
+	{@const available = availableOf(option)}
 	<span
 		class="shrink-0 text-xs tabular-nums {needed > available
 			? 'text-destructive'
@@ -290,13 +338,13 @@
 									<div class="flex items-center gap-2">
 										<span class="flex-1">
 											{#if single && units !== undefined}
-												{piecesFor(units, single.unitValue)}× {nameOf(single.materialId)}
+												{piecesFor(units, single.unitValue)}× {optionName(single)}
 												{#if group.name}<span class="text-muted-foreground">({group.name})</span
 													>{/if}
 											{:else if single}
 												{#if group.name}{group.name}:{/if}
 												{amountsText(group, single.unitValue)}
-												{nameOf(single.materialId)}
+												{optionName(single)}
 											{:else}
 												{group.name ?? 'Alternativen'}
 												<span class="text-muted-foreground"
@@ -309,21 +357,21 @@
 										{/if}
 										{#if single}
 											{@render availability(
-												single.materialId,
+												single,
 												piecesFor(units ?? group.amounts[0].requiredUnits, single.unitValue)
 											)}
 										{/if}
 									</div>
 									{#if !single}
 										<ul class="mt-1 ml-1 space-y-0.5 border-l pl-2 text-xs">
-											{#each group.options.toSorted((a, b) => a.priority - b.priority) as option, rank (option.materialId)}
+											{#each group.options.toSorted((a, b) => a.priority - b.priority) as option, rank (`${option.materialId}/${option.variantId}`)}
 												<li class="flex items-center gap-1.5">
 													<span class="flex-1">
 														{#if rank > 0}<span class="text-muted-foreground">oder</span>{/if}
 														{#if units !== undefined}
-															{piecesFor(units, option.unitValue)}× {nameOf(option.materialId)}
+															{piecesFor(units, option.unitValue)}× {optionName(option)}
 														{:else}
-															{nameOf(option.materialId)}
+															{optionName(option)}
 															<span class="text-muted-foreground"
 																>({option.unitValue}
 																{option.unitValue === 1 ? 'Einheit' : 'Einheiten'})</span
@@ -335,7 +383,7 @@
 															>
 														{/if}
 													</span>
-													{@render availability(option.materialId)}
+													{@render availability(option)}
 												</li>
 											{/each}
 										</ul>
@@ -427,7 +475,7 @@
 							{#each lines as line (line)}
 								{@const kit = kits.get(line.kitId)}
 								{#if kit}
-									{@const label = lineLabel({ kit, choices: line.choices }, nameOf)}
+									{@const label = lineLabel({ kit, choices: line.choices }, plainName)}
 									<li class="space-y-1.5">
 										<div class="flex items-center gap-1">
 											<span class="flex-1">{kit.name}</span>
@@ -446,7 +494,7 @@
 											<div class="flex flex-wrap items-center gap-1.5">
 												{#each kit.groups as group, g (g)}
 													{#if group.amounts.length > 1}
-														{@const name = groupLabel(group, nameOf)}
+														{@const name = groupLabel(group, plainName)}
 														<Select.Root
 															type="single"
 															value={String(line.choices[g])}
@@ -505,7 +553,7 @@
 					</Card.Header>
 					<Card.Content>
 						<ul class="space-y-2 text-sm">
-							{#each needs as need (need.materialId)}
+							{#each needs as need (need.key)}
 								<li class={need.missing > 0 ? 'text-destructive' : ''}>
 									<div class="flex justify-between gap-2">
 										<span><span class="tabular-nums">{need.required}×</span> {need.name}</span>
@@ -563,7 +611,7 @@
 		<div class="break-inside-avoid">
 			<h2 class="border-b border-black font-semibold">{location}</h2>
 			<ul>
-				{#each located as need (need.materialId)}
+				{#each located as need (need.key)}
 					<li class="flex items-baseline gap-2 border-b border-gray-300 py-1">
 						<span class="inline-block size-3.5 shrink-0 border border-black"></span>
 						<span class="w-12 text-right tabular-nums">{need.required}×</span>

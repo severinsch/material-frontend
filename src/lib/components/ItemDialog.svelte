@@ -2,15 +2,18 @@
 	import {
 		mutate,
 		type IndividualItem,
+		type IndividualMaterial,
 		type NewIndividualItem,
 		type StorageLocation
 	} from '#lib/api/index.js';
 	import {
 		conditionLabels,
+		itemName,
 		locationOptions,
 		optionsOf,
 		orNull,
-		statusLabels
+		statusLabels,
+		variantName
 	} from '#lib/format.js';
 	import { nextIdentifier, numberedIdentifiers } from '#lib/identifiers.js';
 	import { getTenant } from '#lib/tenant.js';
@@ -27,28 +30,47 @@
 		items,
 		locations
 	}: {
-		material: { id: string; name: string };
-		/** The material's existing items, to suggest the next free identifier. */
+		material: IndividualMaterial;
+		/** The material's existing items, to suggest the next free identifier of a variant. */
 		items: IndividualItem[];
 		locations: StorageLocation[];
 	} = $props();
 
 	let open = $state(false);
 	let edited = $state<IndividualItem | null>(null);
+	/** The name of the edited item as saved, for the title. */
+	let editedName = $state('');
 	let form = $state(formOf());
 	/** How many items to add, numbered upwards from the identifier. */
 	let count = $state(1);
 
 	const numbered = $derived(count > 1 ? numberedIdentifiers(form.identifier, count) : null);
 	const identifiers = $derived(numbered ?? [form.identifier.trim()]);
+	const variantOptions = $derived(
+		material.variants.map((variant) => ({ value: variant.id, label: variant.name ?? '' }))
+	);
+	/** The selected variant's name, e.g. "Kohtenplane 45 cm Latz", or just the material's name. */
+	const name = $derived(variantName(material, variantOf(form.variantId)));
 	const countError = $derived(
 		count > 1 && !numbered
 			? 'Für mehrere Gegenstände muss die Kennung auf eine Zahl enden, z. B. K01.'
 			: null
 	);
 
-	function formOf(item?: IndividualItem) {
+	function variantOf(variantId: string) {
+		return material.variants.find((variant) => variant.id === variantId) ?? { name: null };
+	}
+
+	/** The identifier after the highest one of the variant [variantId]; identifiers are unique per variant. */
+	function suggestion(variantId: string) {
+		return nextIdentifier(
+			items.filter((item) => item.variantId === variantId).map((item) => item.identifier)
+		);
+	}
+
+	function formOf(item?: IndividualItem, variantId = material.variants[0]?.id ?? '') {
 		return {
+			variantId: item?.variantId ?? variantId,
 			identifier: item?.identifier ?? '',
 			condition: item?.condition ?? 'GOOD',
 			status: item?.status ?? 'ACTIVE',
@@ -59,14 +81,22 @@
 		};
 	}
 
-	/** Opens the dialog to edit [item], or to add new ones. */
-	export function show(item?: IndividualItem) {
+	/** Opens the dialog to edit [item], or to add new ones to the variant [variantId] (the first by default). */
+	export function show(item?: IndividualItem, variantId?: string) {
 		edited = item ?? null;
-		form = item
-			? formOf(item)
-			: { ...formOf(), identifier: nextIdentifier(items.map((i) => i.identifier)) };
+		editedName = item ? itemName(material, variantOf(item.variantId), item) : '';
+		form = formOf(item, variantId);
+		if (!item) form.identifier = suggestion(form.variantId);
 		count = 1;
 		open = true;
+	}
+
+	/** Selects another variant; when adding, the suggested identifier follows unless it was changed. */
+	function selectVariant(variantId: string) {
+		if (!edited && form.identifier === suggestion(form.variantId)) {
+			form.identifier = suggestion(variantId);
+		}
+		form.variantId = variantId;
 	}
 
 	async function save() {
@@ -74,7 +104,6 @@
 		const body = (identifier: string): NewIndividualItem => ({
 			...form,
 			identifier,
-			materialId: material.id,
 			storageLocationId: orNull(form.storageLocationId),
 			locationDetail: orNull(form.locationDetail),
 			purchaseDate: orNull(form.purchaseDate)
@@ -85,22 +114,20 @@
 					params: { path: { id: edited.id } },
 					body: body(form.identifier)
 				}),
-				`${material.name} ${form.identifier} gespeichert`
+				`${name} ${form.identifier} gespeichert`
 			);
 		}
 		const added =
 			identifiers.length === 1
-				? `${material.name} ${identifiers[0]} hinzugefügt`
-				: `${material.name} ${identifiers[0]} bis ${identifiers.at(-1)} hinzugefügt`;
+				? `${name} ${identifiers[0]} hinzugefügt`
+				: `${name} ${identifiers[0]} bis ${identifiers.at(-1)} hinzugefügt`;
 		return mutate(api.POST('/items/batch', { body: identifiers.map(body) }), added);
 	}
 </script>
 
 <FormDialog
 	bind:open
-	title={edited
-		? `${material.name} ${edited.identifier} bearbeiten`
-		: `Gegenstände zu ${material.name} hinzufügen`}
+	title={edited ? `${editedName} bearbeiten` : `Gegenstände zu ${material.name} hinzufügen`}
 	submitLabel={edited
 		? 'Speichern'
 		: identifiers.length === 1
@@ -108,6 +135,20 @@
 			: `${identifiers.length} Gegenstände hinzufügen`}
 	onsubmit={save}
 >
+	{#if variantOptions.length > 1}
+		<Field label="Variante" id="item-variant">
+			<SelectField
+				id="item-variant"
+				bind:value={() => form.variantId, selectVariant}
+				options={variantOptions}
+			/>
+		</Field>
+		{#if edited && form.variantId !== edited.variantId}
+			<p class="-mt-2 text-sm text-muted-foreground">
+				{editedName} wird zu {name} verschoben.
+			</p>
+		{/if}
+	{/if}
 	<div class={edited ? 'grid' : 'grid grid-cols-[1fr_6rem] gap-4'}>
 		<Field label={count > 1 ? 'Erste Kennung' : 'Kennung'} id="item-identifier">
 			<Input
@@ -141,7 +182,7 @@
 				{#if countError}
 					{countError}
 				{:else if identifiers.length > 1}
-					Legt {material.name} {identifiers[0]} bis {identifiers.at(-1)} mit den Angaben unten an.
+					Legt {name} {identifiers[0]} bis {identifiers.at(-1)} mit den Angaben unten an.
 				{:else}
 					Mehrere Gegenstände werden ab dieser Kennung durchnummeriert.
 				{/if}

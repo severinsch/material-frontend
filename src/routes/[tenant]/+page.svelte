@@ -42,13 +42,31 @@
 		}, {})
 	);
 
-	/** Where a material is stored: its location for bulk materials, the distinct item locations otherwise. */
+	/**
+	 * Where a material is stored: the location and place of its bulk variants if they share them, otherwise the
+	 * distinct locations of the variants (bulk) or items (individual).
+	 */
 	function locationOf(material: Material): string {
 		if (material.trackingType === 'BULK') {
-			return [material.location?.name, material.locationDetail].filter(Boolean).join(', ');
+			const places = new Set(
+				material.variants.map((variant) =>
+					[variant.location?.name, variant.locationDetail].filter(Boolean).join(', ')
+				)
+			);
+			if (places.size === 1) return [...places][0];
+			const names = material.variants.map((variant) => variant.location?.name);
+			return [...new Set(names.filter(Boolean))].sort().join(', ');
 		}
 		const names = (itemsByMaterial[material.id] ?? []).map((item) => item.storageLocation?.name);
 		return [...new Set(names.filter(Boolean))].sort().join(', ');
+	}
+
+	/** The available pieces per variant, e.g. "10 m: 4 · 15 m: 6", for materials with several variants. */
+	function variantCounts(material: Material): string | undefined {
+		if (material.variants.length < 2) return;
+		return material.variants
+			.map((variant) => `${variant.name}: ${availableNow(variant)}`)
+			.join(' · ');
 	}
 
 	const sortValues: Record<SortKey, (material: Material) => string | number> = {
@@ -66,9 +84,13 @@
 		const direction = sort.descending ? -1 : 1;
 		return data.materials
 			.filter((material) =>
-				[material.name, material.category, material.description, locationOf(material)].some(
-					(text) => text?.toLowerCase().includes(q)
-				)
+				[
+					material.name,
+					material.category,
+					material.description,
+					locationOf(material),
+					...material.variants.map((variant) => variant.name)
+				].some((text) => text?.toLowerCase().includes(q))
 			)
 			.toSorted((a, b) => {
 				const [x, y] = [value(a), value(b)];
@@ -123,7 +145,7 @@
 			<Input
 				type="search"
 				aria-label="Materialien durchsuchen"
-				placeholder="Name, Kategorie, Beschreibung, Lagerort…"
+				placeholder="Name, Variante, Kategorie, Beschreibung, Lagerort…"
 				class="pl-9"
 				bind:value={query}
 			/>
@@ -177,6 +199,12 @@
 							<a href={tenant.href(`/materials/${material.id}`)} class="font-medium hover:underline"
 								>{material.name}</a
 							>
+							{#if variantCounts(material)}
+								<p class="text-sm text-muted-foreground tabular-nums">
+									<span class="sr-only">Verfügbar je Variante:</span>
+									{variantCounts(material)}
+								</p>
+							{/if}
 							{#if material.description}
 								<p class="text-sm text-muted-foreground">{material.description}</p>
 							{/if}
@@ -217,7 +245,7 @@
 							{/if}
 						</Table.Cell>
 					</Table.Row>
-					{#if isOpen}
+					{#if isOpen && material.trackingType === 'INDIVIDUAL'}
 						<Table.Row class="hover:bg-transparent">
 							<Table.Cell colspan={9} class="bg-muted/30 p-3 whitespace-normal sm:pl-10">
 								<ItemTable

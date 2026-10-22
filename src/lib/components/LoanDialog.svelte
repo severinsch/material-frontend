@@ -6,9 +6,10 @@
 		type Loan,
 		type Material,
 		type Member,
-		type NewLoan
+		type NewLoan,
+		type Variant
 	} from '#lib/api/index.js';
-	import { orNull, statusLabels, today } from '#lib/format.js';
+	import { orNull, statusLabels, today, variantName, variantsById } from '#lib/format.js';
 	import { isAvailableItem, loanContents } from '#lib/loans.js';
 	import { getTenant } from '#lib/tenant.js';
 	import { Button } from '#lib/components/ui/button/index.js';
@@ -43,7 +44,7 @@
 	let title = $state('');
 	/** The items of the edited loan as saved, which stay listed even when unchecked or no longer active. */
 	let ownItemIds = $state<string[]>([]);
-	/** Pieces per material the edited loan holds if it's open; they count as lent out and are free for it again. */
+	/** Pieces per variant the edited loan holds if it's open; they count as lent out and are free for it again. */
 	let ownPieces = $state<Record<string, number>>({});
 	let query = $state('');
 	let form = $state(formOf());
@@ -64,13 +65,13 @@
 			: borrowerOptions.find((option) => option.value === form.borrowerId)?.label
 	);
 
-	const materialsById = $derived(new Map(materials.map((m) => [m.id, m])));
+	const variants = $derived(variantsById(materials));
 	const itemsById = $derived(new Map(items.map((item) => [item.id, item])));
 
 	const search = $derived(query.trim().toLowerCase());
 	const matches = (text: string) => text.toLowerCase().includes(search);
 
-	/** Items of each individual material that can be picked: active and not lent, plus the loan's own items. */
+	/** Items of each individual variant that can be picked: active and not lent, plus the loan's own items. */
 	const pickable = $derived(
 		Map.groupBy(
 			items
@@ -78,22 +79,29 @@
 					(item) => ownItemIds.includes(item.id) || (item.status === 'ACTIVE' && !item.onLoan)
 				)
 				.toSorted((a, b) => a.identifier.localeCompare(b.identifier, undefined, { numeric: true })),
-			(item) => item.materialId
+			(item) => item.variantId
 		)
 	);
 
-	/** Materials that can be lent or are part of the loan, matching the search by name or item identifier. */
+	/**
+	 * Variants that can be lent or are part of the loan, matching the search by material or variant name or item
+	 * identifier, grouped by material. Loans lend specific variants, so every variant is a row of its own.
+	 */
 	const listed = $derived(
-		materials.filter(
-			(material) =>
-				(free(material) > 0 || isInLoan(material.id)) &&
-				(matches(material.name) ||
-					pickable.get(material.id)?.some((item) => matches(item.identifier)))
-		)
+		materials.flatMap((material) => {
+			const rows = material.variants.filter(
+				(variant) =>
+					(free(variant) > 0 || isInLoan(variant.id)) &&
+					(matches(variantName(material, variant)) ||
+						matches(material.name) ||
+						pickable.get(variant.id)?.some((item) => matches(item.identifier)))
+			);
+			return rows.length > 0 ? [{ material, rows }] : [];
+		})
 	);
 
 	const lines = $derived(linesOf(form));
-	const selection = $derived(loanContents(lines, materialsById, itemsById));
+	const selection = $derived(loanContents(lines, variants, itemsById));
 
 	function formOf(loan?: Loan) {
 		const itemIds = loan?.itemIds ?? [];
@@ -104,13 +112,13 @@
 			dueAt: loan?.dueAt ?? '',
 			returnedAt: loan?.returnedAt ?? '',
 			note: loan?.note ?? '',
-			/** Pieces per material, for materials lent by quantity. */
+			/** Pieces per variant, for variants lent by quantity. */
 			quantities: Object.fromEntries(
-				(loan?.materials ?? []).map((line) => [line.materialId, line.quantity])
+				(loan?.materials ?? []).map((line) => [line.variantId, line.quantity])
 			) as Record<string, number | null>,
-			/** Individual materials whose items are picked one by one instead of giving a quantity. */
+			/** Individual variants whose items are picked one by one instead of giving a quantity. */
 			picking: Object.fromEntries(
-				items.filter((item) => itemIds.includes(item.id)).map((item) => [item.materialId, true])
+				items.filter((item) => itemIds.includes(item.id)).map((item) => [item.variantId, true])
 			) as Record<string, boolean>,
 			itemIds
 		};
@@ -124,10 +132,10 @@
 		ownItemIds = loan?.itemIds ?? [];
 		ownPieces = {};
 		if (loan && !loan.returnedAt) {
-			for (const line of loan.materials) ownPieces[line.materialId] = line.quantity;
+			for (const line of loan.materials) ownPieces[line.variantId] = line.quantity;
 			for (const item of loan.itemIds.map((itemId) => itemsById.get(itemId))) {
 				if (item && isAvailableItem(item)) {
-					ownPieces[item.materialId] = (ownPieces[item.materialId] ?? 0) + 1;
+					ownPieces[item.variantId] = (ownPieces[item.variantId] ?? 0) + 1;
 				}
 			}
 		}
@@ -136,32 +144,29 @@
 		open = true;
 	}
 
-	/** Pieces of [material] that are in storage and can be lent with this loan. */
-	function free(material: Material) {
-		return Math.max(
-			0,
-			material.availableCount - material.loanedCount + (ownPieces[material.id] ?? 0)
-		);
+	/** Pieces of [variant] that are in storage and can be lent with this loan. */
+	function free(variant: Variant) {
+		return Math.max(0, variant.availableCount - variant.loanedCount + (ownPieces[variant.id] ?? 0));
 	}
 
-	function isInLoan(materialId: string) {
-		return !!form.quantities[materialId] || !!form.picking[materialId];
+	function isInLoan(variantId: string) {
+		return !!form.quantities[variantId] || !!form.picking[variantId];
 	}
 
-	function pickedOf(materialId: string) {
-		return form.itemIds.filter((itemId) => itemsById.get(itemId)?.materialId === materialId);
+	function pickedOf(variantId: string) {
+		return form.itemIds.filter((itemId) => itemsById.get(itemId)?.variantId === variantId);
 	}
 
 	/** Switches between a quantity and picking items, keeping the number of pieces when going back to a quantity. */
-	function togglePicking(materialId: string) {
-		const picked = pickedOf(materialId);
-		if (form.picking[materialId]) {
+	function togglePicking(variantId: string) {
+		const picked = pickedOf(variantId);
+		if (form.picking[variantId]) {
 			form.itemIds = form.itemIds.filter((itemId) => !picked.includes(itemId));
-			form.quantities[materialId] = picked.length || null;
+			form.quantities[variantId] = picked.length || null;
 		} else {
-			form.quantities[materialId] = null;
+			form.quantities[variantId] = null;
 		}
-		form.picking[materialId] = !form.picking[materialId];
+		form.picking[variantId] = !form.picking[variantId];
 	}
 
 	function toggleItem(itemId: string, checked: boolean) {
@@ -172,8 +177,8 @@
 		return {
 			itemIds,
 			materials: Object.entries(quantities)
-				.filter(([materialId, quantity]) => quantity && !picking[materialId])
-				.map(([materialId, quantity]) => ({ materialId, quantity: quantity! }))
+				.filter(([variantId, quantity]) => quantity && !picking[variantId])
+				.map(([variantId, quantity]) => ({ variantId, quantity: quantity! }))
 		};
 	}
 
@@ -196,6 +201,79 @@
 		);
 	}
 </script>
+
+{#snippet variantRow(material: Material, variant: Variant, label: string)}
+	{@const available = free(variant)}
+	{@const picking = form.picking[variant.id]}
+	{@const name = variantName(material, variant)}
+	<div class="grid gap-1.5">
+		<div class="flex items-center justify-between gap-4">
+			<div class="grid">
+				{#if picking}
+					<span class="text-sm">{label}</span>
+				{:else}
+					<Label for="loan-quantity-{variant.id}" class="font-normal">
+						<span class="sr-only">{name}</span><span aria-hidden="true">{label}</span>
+					</Label>
+				{/if}
+				<span id="loan-free-{variant.id}" class="text-xs text-muted-foreground tabular-nums">
+					{available} verfügbar
+				</span>
+			</div>
+			{#if picking}
+				<span class="text-sm tabular-nums">
+					{pickedOf(variant.id).length} ausgewählt
+				</span>
+			{:else}
+				<Input
+					id="loan-quantity-{variant.id}"
+					type="number"
+					min={0}
+					max={form.returnedAt ? undefined : available}
+					class="w-24"
+					placeholder="0"
+					aria-describedby="loan-free-{variant.id}"
+					bind:value={form.quantities[variant.id]}
+				/>
+			{/if}
+		</div>
+		{#if material.trackingType === 'INDIVIDUAL'}
+			<Button
+				variant="link"
+				size="sm"
+				class="h-auto justify-self-start p-0 text-muted-foreground pointer-coarse:min-h-11"
+				aria-expanded={!!picking}
+				aria-controls="loan-items-{variant.id}"
+				onclick={() => togglePicking(variant.id)}
+			>
+				{picking ? 'Nur Anzahl angeben' : 'Bestimmte auswählen'}
+				<span class="sr-only">({name})</span>
+			</Button>
+		{/if}
+		{#if picking}
+			<div id="loan-items-{variant.id}" class="flex flex-wrap gap-x-4 gap-y-1">
+				{#each pickable.get(variant.id) ?? [] as item (item.id)}
+					<div class="flex items-center gap-1.5 pointer-coarse:min-h-11">
+						<Checkbox
+							id="loan-item-{item.id}"
+							checked={form.itemIds.includes(item.id)}
+							onCheckedChange={(checked) => toggleItem(item.id, checked)}
+						/>
+						<Label for="loan-item-{item.id}" class="font-normal">
+							<span class="sr-only">{name}</span>
+							{item.identifier}
+							{#if item.status !== 'ACTIVE'}
+								<span class="text-destructive">({statusLabels[item.status]})</span>
+							{/if}
+						</Label>
+					</div>
+				{:else}
+					<p class="text-sm text-muted-foreground">Kein Gegenstand frei.</p>
+				{/each}
+			</div>
+		{/if}
+	</div>
+{/snippet}
 
 <FormDialog bind:open {title} submitLabel={id ? 'Speichern' : 'Ausleihen'} onsubmit={save}>
 	{#if canEdit}
@@ -248,74 +326,23 @@
 			/>
 		</div>
 		<div class="grid max-h-80 gap-4 overflow-y-auto rounded-md border p-3">
-			{#each listed as material (material.id)}
-				{@const available = free(material)}
-				{@const picking = form.picking[material.id]}
-				<div class="grid gap-1.5">
-					<div class="flex items-center justify-between gap-4">
-						<div class="grid">
-							{#if picking}
-								<span class="text-sm">{material.name}</span>
-							{:else}
-								<Label for="loan-quantity-{material.id}" class="font-normal">{material.name}</Label>
-							{/if}
-							<span id="loan-free-{material.id}" class="text-xs text-muted-foreground tabular-nums">
-								{available} verfügbar
-							</span>
-						</div>
-						{#if picking}
-							<span class="text-sm tabular-nums">
-								{pickedOf(material.id).length} ausgewählt
-							</span>
-						{:else}
-							<Input
-								id="loan-quantity-{material.id}"
-								type="number"
-								min={0}
-								max={form.returnedAt ? undefined : available}
-								class="w-24"
-								placeholder="0"
-								aria-describedby="loan-free-{material.id}"
-								bind:value={form.quantities[material.id]}
-							/>
-						{/if}
-					</div>
-					{#if material.trackingType === 'INDIVIDUAL'}
-						<Button
-							variant="link"
-							size="sm"
-							class="h-auto justify-self-start p-0 text-muted-foreground pointer-coarse:min-h-11"
-							aria-expanded={!!picking}
-							aria-controls="loan-items-{material.id}"
-							onclick={() => togglePicking(material.id)}
+			{#each listed as { material, rows } (material.id)}
+				{#if material.variants.length > 1}
+					<!-- Variants are lent separately and listed under their material. -->
+					<div class="grid gap-2" role="group" aria-labelledby="loan-material-{material.id}">
+						<span id="loan-material-{material.id}" class="text-sm font-medium">{material.name}</span
 						>
-							{picking ? 'Nur Anzahl angeben' : 'Bestimmte auswählen'}
-							<span class="sr-only">({material.name})</span>
-						</Button>
-					{/if}
-					{#if picking}
-						<div id="loan-items-{material.id}" class="flex flex-wrap gap-x-4 gap-y-1">
-							{#each pickable.get(material.id) ?? [] as item (item.id)}
-								<div class="flex items-center gap-1.5 pointer-coarse:min-h-11">
-									<Checkbox
-										id="loan-item-{item.id}"
-										checked={form.itemIds.includes(item.id)}
-										onCheckedChange={(checked) => toggleItem(item.id, checked)}
-									/>
-									<Label for="loan-item-{item.id}" class="font-normal">
-										<span class="sr-only">{material.name}</span>
-										{item.identifier}
-										{#if item.status !== 'ACTIVE'}
-											<span class="text-destructive">({statusLabels[item.status]})</span>
-										{/if}
-									</Label>
-								</div>
-							{:else}
-								<p class="text-sm text-muted-foreground">Kein Gegenstand frei.</p>
+						<div class="grid gap-3 border-l pl-3">
+							{#each rows as variant (variant.id)}
+								{@render variantRow(material, variant, variant.name ?? '')}
 							{/each}
 						</div>
-					{/if}
-				</div>
+					</div>
+				{:else}
+					{#each rows as variant (variant.id)}
+						{@render variantRow(material, variant, material.name)}
+					{/each}
+				{/if}
 			{/each}
 			{#if listed.length === 0}
 				<p class="text-sm text-muted-foreground">

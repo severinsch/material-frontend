@@ -51,7 +51,8 @@ const names: Record<string, string> = {
 	stange: 'Jurtenstange',
 	fenster: 'Fensterplane'
 };
-const nameOf = (id: string) => names[id];
+const nameOf = (option: { materialId: string; variantId?: string | null }) =>
+	option.variantId ?? names[option.materialId];
 
 describe('selection in the URL', () => {
 	it('round-trips lines with their non-default choices', () => {
@@ -113,30 +114,42 @@ describe('lines', () => {
 });
 
 describe('describeShortage', () => {
-	const line = { kit: jurte, choices: [0, 0, 1, 0] };
+	const label = 'Jurte (Mittelstange: Dreibein, Fensterplane: ohne)';
 
 	it('lists the alternatives that could fill the missing units', () => {
-		expect(describeShortage({ line: 0, groupIndex: 1, missingUnits: 5 }, line, nameOf)).toBe(
+		expect(
+			describeShortage({ line: 0, groupIndex: 1, missingUnits: 5 }, jurte, label, nameOf)
+		).toBe(
 			'Jurte (Mittelstange: Dreibein, Fensterplane: ohne) – Dach: 5 Einheiten fehlen (2× Jurtenhalbdach oder 5× Kohtenblatt)'
 		);
 	});
 
-	it('names the pieces of a single material', () => {
-		const kohte: Kit = { ...jurte, name: 'Kohte', groups: jurte.groups.slice(0, 1) };
+	it('names the pieces of a single option', () => {
+		const shortage = (missingUnits: number) => ({ line: 0, groupIndex: 0, missingUnits });
+		expect(describeShortage(shortage(3), jurte, 'Kohte', nameOf)).toBe('Kohte: 3× Hering fehlen');
+		expect(describeShortage(shortage(1), jurte, 'Kohte', nameOf)).toBe('Kohte: 1× Hering fehlt');
+	});
+
+	it('names options for variants', () => {
+		const kohte: Kit = {
+			id: 'kohte',
+			name: 'Kohte',
+			groups: [
+				{
+					name: 'Abspannung',
+					amounts: [{ label: null, requiredUnits: 4 }],
+					options: [
+						{ materialId: 'seil', variantId: null, unitValue: 1, priority: 0 },
+						{ materialId: 'band', variantId: 'Band 5 m', unitValue: 1, priority: 1 }
+					]
+				}
+			]
+		};
+		const optionName = (option: { materialId: string; variantId?: string | null }) =>
+			option.variantId ?? 'Seil (beliebig)';
 		expect(
-			describeShortage(
-				{ line: 0, groupIndex: 0, missingUnits: 3 },
-				{ kit: kohte, choices: [0] },
-				nameOf
-			)
-		).toBe('Kohte: 3× Hering fehlen');
-		expect(
-			describeShortage(
-				{ line: 0, groupIndex: 0, missingUnits: 1 },
-				{ kit: kohte, choices: [0] },
-				nameOf
-			)
-		).toBe('Kohte: 1× Hering fehlt');
+			describeShortage({ line: 0, groupIndex: 0, missingUnits: 2 }, kohte, 'Kohte', optionName)
+		).toBe('Kohte – Abspannung: 2 Einheiten fehlen (2× Seil (beliebig) oder 2× Band 5 m)');
 	});
 });
 
@@ -145,6 +158,7 @@ describe('placeOf', () => {
 	const item = (location: string | null, detail: string | null = null, extra = {}) =>
 		({
 			materialId: 'fenster',
+			variantId: 'fenster-1',
 			status: 'ACTIVE',
 			condition: 'GOOD',
 			onLoan: false,
@@ -155,7 +169,10 @@ describe('placeOf', () => {
 
 	it('uses the location of the usable items', () => {
 		const items = [item('Keller', 'Regal 1'), item('Garage', null, { status: 'LOST' })];
-		expect(placeOf(material, items, true)).toEqual({ location: 'Keller', detail: 'Regal 1' });
+		expect(placeOf(material, ['fenster-1'], items, true)).toEqual({
+			location: 'Keller',
+			detail: 'Regal 1'
+		});
 	});
 
 	it('counts items per location when they are spread', () => {
@@ -165,9 +182,44 @@ describe('placeOf', () => {
 			item('Keller'),
 			item('Garage', null, { onLoan: true })
 		];
-		expect(placeOf(material, items, true)).toEqual({
+		expect(placeOf(material, ['fenster-1'], items, true)).toEqual({
 			location: SEVERAL_LOCATIONS,
 			detail: 'Garage (1), Keller (2)'
+		});
+	});
+
+	it('only counts items of the given variants', () => {
+		const items = [item('Keller'), item('Garage', null, { variantId: 'fenster-2' })];
+		expect(placeOf(material, ['fenster-1'], items, true).location).toBe('Keller');
+	});
+
+	it('uses the locations of bulk variants', () => {
+		const location = (name: string | null) => (name ? { id: name, name } : null);
+		const variant = (id: string, name: string, at: string | null, detail: string | null) => ({
+			id,
+			name,
+			availableCount: 1,
+			damagedCount: 0,
+			loanedCount: 0,
+			location: location(at),
+			locationDetail: detail
+		});
+		const seil = {
+			id: 'seil',
+			trackingType: 'BULK',
+			variants: [
+				variant('10', '10 m', 'Keller', 'Kiste 1'),
+				variant('15', '15 m', 'Keller', 'Kiste 2'),
+				variant('20', '20 m', 'Garage', null)
+			]
+		} as Material;
+		expect(placeOf(seil, ['10', '15'], [], true)).toEqual({
+			location: 'Keller',
+			detail: 'Kiste 1, Kiste 2'
+		});
+		expect(placeOf(seil, ['10', '15', '20'], [], true)).toEqual({
+			location: SEVERAL_LOCATIONS,
+			detail: 'Garage (20 m), Keller (10 m, 15 m)'
 		});
 	});
 });

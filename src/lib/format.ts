@@ -1,4 +1,11 @@
-import type { ItemCondition, ItemStatus, Material, StorageLocation } from '#lib/api/index.js';
+import type {
+	IndividualItem,
+	ItemCondition,
+	ItemStatus,
+	Material,
+	StorageLocation,
+	Variant
+} from '#lib/api/index.js';
 
 export const conditionLabels: Record<ItemCondition, string> = {
 	NEW: 'Neu',
@@ -18,6 +25,58 @@ export const trackingTypeLabels: Record<Material['trackingType'], string> = {
 	BULK: 'Nach Menge',
 	INDIVIDUAL: 'Einzeln'
 };
+
+// Names of variants and items, built here so the format can change in one place. Like the backend
+// (services/Names.kt), a variant's name is only included if its material has several variants, since the UI doesn't
+// show variants otherwise: "Seil 15 m" and "Kohtenplane 45 cm Latz K45 01", but "Hering" and "Kohtenblatt 3".
+
+/** A material with its variants, as far as needed for names. */
+type Named = Pick<Material, 'name'> & { variants: readonly Pick<Variant, 'name'>[] };
+
+/** E.g. "Seil 15 m"; just the material's name if it has a single variant. */
+export function variantName(material: Named, variant: Pick<Variant, 'name'>): string {
+	return material.variants.length > 1 && variant.name
+		? `${material.name} ${variant.name}`
+		: material.name;
+}
+
+/** E.g. "Kohtenplane 45 cm Latz K45 01", or "Kohtenblatt 3" if the material has a single variant. */
+export function itemName(
+	material: Named,
+	variant: Pick<Variant, 'name'>,
+	item: Pick<IndividualItem, 'identifier'>
+): string {
+	return `${variantName(material, variant)} ${item.identifier}`;
+}
+
+/** A variant together with its material. */
+export interface VariantOf {
+	material: Material;
+	variant: Variant;
+}
+
+/** The variants of [materials] by id, with their material: the counterpart of a material lookup by id. */
+export function variantsById(materials: Material[]): Map<string, VariantOf> {
+	return new Map(
+		materials.flatMap((material) =>
+			material.variants.map((variant) => [variant.id, { material, variant }] as const)
+		)
+	);
+}
+
+/** The name of the variant [variantId], looked up in [variants] (see [variantsById]). */
+export function variantNameOf(variants: ReadonlyMap<string, VariantOf>, variantId: string): string {
+	const found = variants.get(variantId);
+	return found ? variantName(found.material, found.variant) : 'Unbekanntes Material';
+}
+
+/** The name of [item], looking up its variant in [variants] (see [variantsById]). */
+export function itemNameOf(
+	variants: ReadonlyMap<string, VariantOf>,
+	item: Pick<IndividualItem, 'variantId' | 'identifier'>
+): string {
+	return `${variantNameOf(variants, item.variantId)} ${item.identifier}`;
+}
 
 /** Select options for a label record. */
 export function optionsOf<T extends string>(labels: Record<T, string>) {

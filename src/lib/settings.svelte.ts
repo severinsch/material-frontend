@@ -6,8 +6,8 @@ export const settings = $state({
 	subtractLoaned: true
 });
 
-/** The number of usable pieces of [material], respecting `settings.subtractLoaned`. */
-export function availableNow(material: Material): number {
-	const loaned = settings.subtractLoaned ? material.loanedCount : 0;
-	return Math.max(0, material.availableCount - loaned);
+/** The number of usable pieces of [stock] (a material or a variant), respecting `settings.subtractLoaned`. */
+export function availableNow(stock: Pick<Material, 'availableCount' | 'loanedCount'>): number {
+	const loaned = settings.subtractLoaned ? stock.loanedCount : 0;
+	return Math.max(0, stock.availableCount - loaned);
 }

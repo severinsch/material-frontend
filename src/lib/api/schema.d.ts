@@ -675,7 +675,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Get all materials. */
+        /** Get all materials with their variants. */
         get: {
             parameters: {
                 query?: {
@@ -729,7 +729,10 @@ export interface paths {
             };
         };
         put?: never;
-        /** Create a material. `trackingType` decides whether it's a bulk or an individual material. */
+        /**
+         * Create a material with its variants (none of them with an `id`). `trackingType` decides whether it's a bulk
+         *     or an individual material.
+         */
         post: {
             parameters: {
                 query?: never;
@@ -754,7 +757,7 @@ export interface paths {
                         "application/json": components["schemas"]["Material"];
                     };
                 };
-                /** @description Invalid material or unknown location. */
+                /** @description Invalid material or variants, or unknown location. */
                 400: {
                     headers: {
                         [name: string]: unknown;
@@ -783,6 +786,15 @@ export interface paths {
                 };
                 /** @description No tenant with this id, or the user has no access to it. */
                 404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description The name is taken. */
+                409: {
                     headers: {
                         [name: string]: unknown;
                     };
@@ -857,7 +869,11 @@ export interface paths {
                 };
             };
         };
-        /** Replace a material. Its `trackingType` can't be changed. */
+        /**
+         * Replace a material including its variants. Variants with an `id` are changed, those without are created,
+         *     and those in `removedVariantIds` are deleted. Every existing variant must be listed or removed. Its
+         *     `trackingType` can't be changed.
+         */
         put: {
             parameters: {
                 query?: never;
@@ -884,7 +900,7 @@ export interface paths {
                         "application/json": components["schemas"]["Material"];
                     };
                 };
-                /** @description Invalid material or unknown location. */
+                /** @description Invalid material or variants, a variant of another material, or unknown location. */
                 400: {
                     headers: {
                         [name: string]: unknown;
@@ -920,7 +936,7 @@ export interface paths {
                         "application/json": components["schemas"]["ErrorResponse"];
                     };
                 };
-                /** @description The tracking type differs, the name is taken, or the stock */
+                /** @description The tracking type differs, the name is taken, an existing variant is neither listed nor removed, a removed variant is still in use, or a stock differs from `expectedAvailableCount` or would drop below the pieces lent out. */
                 409: {
                     headers: {
                         [name: string]: unknown;
@@ -932,7 +948,10 @@ export interface paths {
             };
         };
         post?: never;
-        /** Delete a material. Only possible while nothing references it (items, purchases, kits, loans). */
+        /**
+         * Delete a material with its variants. Only possible while nothing references them (items, purchases, kits,
+         *     loans).
+         */
         delete: {
             parameters: {
                 query?: never;
@@ -1007,7 +1026,7 @@ export interface paths {
         get: {
             parameters: {
                 query?: {
-                    /** @description Only return items of this material. */
+                    /** @description Only return items of this material (of all its variants). */
                     materialId?: string;
                 };
                 header?: never;
@@ -1057,7 +1076,7 @@ export interface paths {
             };
         };
         put?: never;
-        /** Create an individual item. */
+        /** Create an individual item of a variant. */
         post: {
             parameters: {
                 query?: never;
@@ -1082,7 +1101,7 @@ export interface paths {
                         "application/json": components["schemas"]["IndividualItem"];
                     };
                 };
-                /** @description Invalid item, or the material isn't an individual one. */
+                /** @description Invalid item, or the variant isn't one of an individual material. */
                 400: {
                     headers: {
                         [name: string]: unknown;
@@ -1194,7 +1213,10 @@ export interface paths {
                 };
             };
         };
-        /** Replace an individual item. Its `materialId` can't be changed. */
+        /**
+         * Replace an individual item. It can move to another variant of its material (`variantId`), not to another
+         *     material.
+         */
         put: {
             parameters: {
                 query?: never;
@@ -1221,7 +1243,7 @@ export interface paths {
                         "application/json": components["schemas"]["IndividualItem"];
                     };
                 };
-                /** @description Invalid item. */
+                /** @description Invalid item, or a variant of another material. */
                 400: {
                     headers: {
                         [name: string]: unknown;
@@ -1373,7 +1395,7 @@ export interface paths {
                         "application/json": components["schemas"]["IndividualItem"][];
                     };
                 };
-                /** @description Invalid or no items, or a material isn't an individual one. */
+                /** @description Invalid or no items, or a variant isn't one of an individual material. */
                 400: {
                     headers: {
                         [name: string]: unknown;
@@ -1437,7 +1459,7 @@ export interface paths {
         get: {
             parameters: {
                 query?: {
-                    /** @description Only return purchases of this material. */
+                    /** @description Only return purchases of this material (of all its variants). */
                     materialId?: string;
                 };
                 header?: never;
@@ -1487,7 +1509,7 @@ export interface paths {
             };
         };
         put?: never;
-        /** Record a purchase. Its quantity is added to the material's available stock. */
+        /** Record a purchase of a variant. Its quantity is added to the variant's available stock. */
         post: {
             parameters: {
                 query?: never;
@@ -1512,7 +1534,7 @@ export interface paths {
                         "application/json": components["schemas"]["Purchase"];
                     };
                 };
-                /** @description Invalid purchase, or the material isn't a bulk material. */
+                /** @description Invalid purchase, or the variant isn't one of a bulk material. */
                 400: {
                     headers: {
                         [name: string]: unknown;
@@ -1615,7 +1637,7 @@ export interface paths {
                 };
             };
         };
-        /** Replace a purchase. Its `materialId` can't be changed. The stock changes by the difference of the quantities. */
+        /** Replace a purchase. Its `variantId` can't be changed. The stock changes by the difference of the quantities. */
         put: {
             parameters: {
                 query?: never;
@@ -2107,7 +2129,7 @@ export interface paths {
             };
         };
         put?: never;
-        /** Create a kit. */
+        /** Create a kit. An option refers to a material (any variant) or to one of its variants (`variantId`). */
         post: {
             parameters: {
                 query?: never;
@@ -2132,7 +2154,7 @@ export interface paths {
                         "application/json": components["schemas"]["Kit"];
                     };
                 };
-                /** @description Invalid kit or unknown material. */
+                /** @description Invalid kit, overlapping options, unknown material or variant, or a variant of another material. */
                 400: {
                     headers: {
                         [name: string]: unknown;
@@ -2441,7 +2463,7 @@ export interface paths {
                         "application/json": components["schemas"]["Loan"];
                     };
                 };
-                /** @description Invalid loan, unknown item or material, or the borrower isn't a member. */
+                /** @description Invalid loan, unknown item or variant, or the borrower isn't a member. */
                 400: {
                     headers: {
                         [name: string]: unknown;
@@ -3682,6 +3704,17 @@ export interface components {
             name: string;
             description?: string | null;
         } | null;
+        /** BulkVariant */
+        BulkVariant: {
+            /** Format: uuid */
+            id: string;
+            name?: string | null;
+            availableCount: number;
+            damagedCount: number;
+            loanedCount: number;
+            location?: components["schemas"]["StorageLocation2"];
+            locationDetail?: string | null;
+        };
         /** BulkMaterial */
         BulkMaterial: {
             /**
@@ -3697,8 +3730,16 @@ export interface components {
             availableCount: number;
             damagedCount: number;
             loanedCount: number;
-            location?: components["schemas"]["StorageLocation2"];
-            locationDetail?: string | null;
+            variants: components["schemas"]["BulkVariant"][];
+        };
+        /** IndividualVariant */
+        IndividualVariant: {
+            /** Format: uuid */
+            id: string;
+            name?: string | null;
+            availableCount: number;
+            damagedCount: number;
+            loanedCount: number;
         };
         /** IndividualMaterial */
         IndividualMaterial: {
@@ -3715,9 +3756,22 @@ export interface components {
             availableCount: number;
             damagedCount: number;
             loanedCount: number;
+            variants: components["schemas"]["IndividualVariant"][];
         };
         /** Material */
         Material: components["schemas"]["BulkMaterial"] | components["schemas"]["IndividualMaterial"];
+        /** NewBulkVariant */
+        NewBulkVariant: {
+            /** Format: uuid */
+            id?: string | null;
+            name?: string | null;
+            availableCount: number;
+            damagedCount?: number;
+            /** Format: uuid */
+            storageLocationId?: string | null;
+            locationDetail?: string | null;
+            expectedAvailableCount?: number | null;
+        };
         /** NewBulkMaterial */
         NewBulkMaterial: {
             /**
@@ -3728,12 +3782,14 @@ export interface components {
             name: string;
             category?: string | null;
             description?: string | null;
-            availableCount: number;
-            damagedCount?: number;
+            variants: components["schemas"]["NewBulkVariant"][];
+            removedVariantIds?: string[];
+        };
+        /** NewIndividualVariant */
+        NewIndividualVariant: {
             /** Format: uuid */
-            storageLocationId?: string | null;
-            locationDetail?: string | null;
-            expectedAvailableCount?: number | null;
+            id?: string | null;
+            name?: string | null;
         };
         /** NewIndividualMaterial */
         NewIndividualMaterial: {
@@ -3745,6 +3801,8 @@ export interface components {
             name: string;
             category?: string | null;
             description?: string | null;
+            variants?: components["schemas"]["NewIndividualVariant"][];
+            removedVariantIds?: string[];
         };
         /** NewMaterial */
         NewMaterial: components["schemas"]["NewBulkMaterial"] | components["schemas"]["NewIndividualMaterial"];
@@ -3754,6 +3812,8 @@ export interface components {
             id: string;
             /** Format: uuid */
             materialId: string;
+            /** Format: uuid */
+            variantId: string;
             identifier: string;
             /** @enum {string} */
             condition: "NEW" | "GOOD" | "FAIR" | "POOR";
@@ -3770,7 +3830,7 @@ export interface components {
         /** NewIndividualItem */
         NewIndividualItem: {
             /** Format: uuid */
-            materialId: string;
+            variantId: string;
             identifier: string;
             /** @enum {string} */
             condition: "NEW" | "GOOD" | "FAIR" | "POOR";
@@ -3789,6 +3849,8 @@ export interface components {
             id: string;
             /** Format: uuid */
             materialId: string;
+            /** Format: uuid */
+            variantId: string;
             quantity: number;
             unitPrice?: number | null;
             /** Format: date */
@@ -3798,7 +3860,7 @@ export interface components {
         /** NewPurchase */
         NewPurchase: {
             /** Format: uuid */
-            materialId: string;
+            variantId: string;
             quantity: number;
             unitPrice?: number | null;
             /** Format: date */
@@ -3839,6 +3901,8 @@ export interface components {
         KitGroupOption: {
             /** Format: uuid */
             materialId: string;
+            /** Format: uuid */
+            variantId?: string | null;
             unitValue: number;
             priority: number;
         };
@@ -3865,6 +3929,8 @@ export interface components {
         NewKitGroupOption: {
             /** Format: uuid */
             materialId: string;
+            /** Format: uuid */
+            variantId?: string | null;
             unitValue?: number;
             priority?: number;
         };
@@ -3883,7 +3949,7 @@ export interface components {
         /** LoanQuantity */
         LoanQuantity: {
             /** Format: uuid */
-            materialId: string;
+            variantId: string;
             quantity: number;
         };
         /** Loan */

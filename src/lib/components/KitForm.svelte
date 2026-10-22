@@ -26,8 +26,11 @@
 		description: kit?.description ?? '',
 		groups: (kit?.groups ?? []).map((group) => ({
 			name: group.name ?? '',
-			requiredUnits: group.requiredUnits,
-			isOptional: group.isOptional,
+			// The first amount is the default in the packing list; a single amount has no label.
+			amounts: group.amounts.map(({ label, requiredUnits }) => ({
+				label: label ?? '',
+				requiredUnits
+			})),
 			// Alternatives are kept in priority order, the first one is used first.
 			options: group.options
 				.toSorted((a, b) => a.priority - b.priority)
@@ -50,8 +53,43 @@
 		if (new Set(ids).size < ids.length) return 'Jedes Material kann pro Teil nur einmal vorkommen.';
 	}
 
+	/** The validation error of a group's amounts, if any. */
+	function amountsError(group: Group): string | undefined {
+		if (group.amounts.every((amount) => !(amount.requiredUnits > 0))) {
+			return 'Mindestens eine Ausführung braucht Einheiten.';
+		}
+		if (group.amounts.length < 2) return;
+		const labels = group.amounts.map((amount) => amount.label.trim());
+		if (labels.some((label) => !label)) return 'Gib jeder Ausführung eine Bezeichnung.';
+		if (new Set(labels).size < labels.length) {
+			return 'Jede Bezeichnung kann pro Teil nur einmal vorkommen.';
+		}
+	}
+
+	/** Whether [group] is optional, i.e. has an amount of 0 ("ohne"). */
+	function isOptional(group: Group) {
+		return group.amounts.some((amount) => amount.requiredUnits === 0);
+	}
+
+	/**
+	 * The "Optional" shortcut: adds an amount "ohne" = 0 as the default (naming a single unnamed amount "mit"), or
+	 * removes the amounts of 0.
+	 */
+	function setOptional(group: Group, optional: boolean) {
+		if (optional) {
+			const [only] = group.amounts.length === 1 ? group.amounts : [];
+			if (only && !only.label.trim()) only.label = 'mit';
+			group.amounts.unshift({ label: 'ohne', requiredUnits: 0 });
+		} else {
+			const rest = group.amounts.filter((amount) => amount.requiredUnits !== 0);
+			group.amounts = rest.length > 0 ? rest : [{ label: '', requiredUnits: 1 }];
+		}
+	}
+
 	const noParts = $derived(form.groups.length === 0);
-	const isValid = $derived(!noParts && form.groups.every((group) => !groupError(group)));
+	const isValid = $derived(
+		!noParts && form.groups.every((group) => !groupError(group) && !amountsError(group))
+	);
 
 	function newOption() {
 		return { materialId: '', unitValue: 1 };
@@ -69,8 +107,11 @@
 			name: form.name,
 			description: orNull(form.description),
 			groups: form.groups.map((group) => ({
-				...group,
 				name: orNull(group.name),
+				amounts: group.amounts.map(({ label, requiredUnits }) => ({
+					label: group.amounts.length > 1 ? orNull(label) : null,
+					requiredUnits
+				})),
 				options: group.options.map((option, priority) => ({ ...option, priority }))
 			}))
 		};
@@ -115,33 +156,107 @@
 			Jedes Teil braucht eine Anzahl Einheiten, die von einem oder mehreren austauschbaren
 			Materialien gefüllt werden. Die Alternativen werden in der angegebenen Reihenfolge verwendet;
 			ein Material kann mehrere Einheiten zählen (z. B. ersetzt ein Jurtenhalbdach drei
-			Kohtenblätter). Optionale Teile werden ganz oder gar nicht eingepackt.
+			Kohtenblätter). Ein Teil kann mehrere Ausführungen haben (z. B. Einbein mit 1 und Dreibein mit
+			3 Jurtenstangen), von denen in der Packliste eine gewählt wird. Optionale Teile haben eine
+			Ausführung „ohne“ mit 0 Einheiten.
 		</p>
 	</div>
 
 	{#each form.groups as group, g (group)}
 		{@const error = submitted ? groupError(group) : undefined}
+		{@const amountsErr = submitted ? amountsError(group) : undefined}
+		{@const [single] = group.amounts.length === 1 ? group.amounts : []}
 		{@const partName = group.name || `Teil ${g + 1}`}
 		<Card.Root>
 			<Card.Content class="space-y-4">
-				<div class="grid gap-4 sm:grid-cols-[1fr_8rem_auto] sm:items-end">
+				<div
+					class={[
+						'grid gap-4 sm:items-end',
+						single ? 'sm:grid-cols-[1fr_8rem_auto]' : 'sm:grid-cols-[1fr_auto]'
+					]}
+				>
 					<Field label="Name (optional)" id="group-{g}-name">
 						<Input id="group-{g}-name" bind:value={group.name} placeholder="z. B. Dach" />
 					</Field>
-					<Field label="Einheiten" id="group-{g}-units">
-						<Input
-							id="group-{g}-units"
-							type="number"
-							min={1}
-							required
-							bind:value={group.requiredUnits}
-						/>
-					</Field>
+					{#if single}
+						<Field label="Einheiten" id="group-{g}-units">
+							<Input
+								id="group-{g}-units"
+								type="number"
+								min={1}
+								required
+								aria-describedby={amountsErr ? `group-${g}-amounts-error` : undefined}
+								bind:value={single.requiredUnits}
+							/>
+						</Field>
+					{/if}
 					<div class="flex h-9 items-center gap-2">
-						<Checkbox id="group-{g}-optional" bind:checked={group.isOptional} />
+						<Checkbox
+							id="group-{g}-optional"
+							checked={isOptional(group)}
+							onCheckedChange={(checked) => setOptional(group, checked)}
+						/>
 						<Label for="group-{g}-optional">Optional</Label>
 					</div>
 				</div>
+
+				{#if !single}
+					<div class="space-y-2">
+						<div class="flex items-end gap-2 text-sm font-medium">
+							<span class="flex-1">
+								Ausführungen <span class="font-normal text-muted-foreground"
+									>(die erste ist in der Packliste voreingestellt)</span
+								>
+							</span>
+							<span class="w-20 text-xs leading-tight">Einheiten</span>
+							<span class="w-16 pointer-coarse:w-24"></span>
+						</div>
+						{#each group.amounts as amount, a (amount)}
+							{@const amountName = `Ausführung ${a + 1} von ${partName}`}
+							<div class="flex items-center gap-2">
+								<Input
+									class="min-w-0 flex-1"
+									maxlength={100}
+									placeholder={a === 0 ? 'z. B. Einbein' : 'z. B. Dreibein'}
+									aria-label="Bezeichnung für {amountName}"
+									aria-describedby={amountsErr ? `group-${g}-amounts-error` : undefined}
+									aria-invalid={(submitted && !amount.label.trim()) || undefined}
+									bind:value={amount.label}
+								/>
+								<Input
+									type="number"
+									min={0}
+									required
+									class="w-20"
+									aria-label="Einheiten für {amountName}"
+									bind:value={amount.requiredUnits}
+								/>
+								<Button
+									variant="ghost"
+									size="icon-sm"
+									aria-label="{amountName} nach oben"
+									title="Nach oben"
+									disabled={a === 0}
+									onclick={() => moveUp(group.amounts, a)}
+								>
+									<ArrowUpIcon />
+								</Button>
+								<Button
+									variant="ghost"
+									size="icon-sm"
+									aria-label="{amountName} entfernen"
+									title="Entfernen"
+									onclick={() => group.amounts.splice(a, 1)}
+								>
+									<XIcon />
+								</Button>
+							</div>
+						{/each}
+					</div>
+				{/if}
+				{#if amountsErr}
+					<p id="group-{g}-amounts-error" class="text-sm text-destructive">{amountsErr}</p>
+				{/if}
 
 				<div class="space-y-2">
 					<div class="flex items-end gap-2 text-sm font-medium">
@@ -206,9 +321,18 @@
 				</div>
 			</Card.Content>
 			<Card.Footer class="flex-wrap justify-between gap-2">
-				<Button variant="outline" size="sm" onclick={() => group.options.push(newOption())}>
-					<PlusIcon />Alternative hinzufügen
-				</Button>
+				<div class="flex flex-wrap gap-2">
+					<Button variant="outline" size="sm" onclick={() => group.options.push(newOption())}>
+						<PlusIcon />Alternative hinzufügen
+					</Button>
+					<Button
+						variant="outline"
+						size="sm"
+						onclick={() => group.amounts.push({ label: '', requiredUnits: 1 })}
+					>
+						<PlusIcon />Ausführung hinzufügen
+					</Button>
+				</div>
 				<div class="flex gap-1">
 					<Button
 						variant="ghost"
@@ -237,7 +361,11 @@
 			variant="outline"
 			aria-describedby={submitted && noParts ? 'kit-parts-error' : undefined}
 			onclick={() =>
-				form.groups.push({ name: '', requiredUnits: 1, isOptional: false, options: [newOption()] })}
+				form.groups.push({
+					name: '',
+					amounts: [{ label: '', requiredUnits: 1 }],
+					options: [newOption()]
+				})}
 		>
 			<PlusIcon />Teil hinzufügen
 		</Button>

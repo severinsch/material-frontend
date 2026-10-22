@@ -20,6 +20,7 @@ export type DamageReport = Schemas['DamageReport'];
 export type NewDamageReport = Schemas['NewDamageReport'];
 export type Kit = Schemas['Kit'];
 export type KitGroup = Schemas['KitGroup'];
+export type KitGroupAmount = Schemas['KitGroupAmount'];
 export type NewKit = Schemas['NewKit'];
 export type Loan = Schemas['Loan'];
 export type NewLoan = Schemas['NewLoan'];

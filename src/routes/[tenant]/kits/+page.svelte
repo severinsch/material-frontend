@@ -1,31 +1,37 @@
 <script lang="ts">
 	import CheckIcon from '@lucide/svelte/icons/check';
 	import CopyIcon from '@lucide/svelte/icons/copy';
+	import CopyPlusIcon from '@lucide/svelte/icons/copy-plus';
 	import MinusIcon from '@lucide/svelte/icons/minus';
 	import PencilIcon from '@lucide/svelte/icons/pencil';
 	import PlusIcon from '@lucide/svelte/icons/plus';
 	import PrinterIcon from '@lucide/svelte/icons/printer';
 	import Trash2Icon from '@lucide/svelte/icons/trash-2';
-	import { SvelteMap, SvelteSet } from 'svelte/reactivity';
 	import { toast } from 'svelte-sonner';
 	import { afterNavigate, replaceState } from '$app/navigation';
 	import { page } from '$app/state';
+	import type { Kit, KitGroup, KitGroupAmount } from '#lib/api/index.js';
 	import { formatDate, today } from '#lib/format.js';
-	import { allocate } from '#lib/kits/allocate.js';
+	import { allocate, needsOf } from '#lib/kits/allocate.js';
 	import {
 		byPlace,
+		combineLines,
 		describeShortage,
+		groupLabel,
+		hasChoices,
+		lineLabel,
+		newLine,
 		parseSelection,
 		placeOf,
 		serializeSelection,
-		type PackingSelection
+		type PackingLine
 	} from '#lib/kits/packing.js';
 	import { availableNow, settings } from '#lib/settings.svelte.js';
 	import { getTenant } from '#lib/tenant.js';
 	import { Badge } from '#lib/components/ui/badge/index.js';
 	import { Button } from '#lib/components/ui/button/index.js';
 	import * as Card from '#lib/components/ui/card/index.js';
-	import { Checkbox } from '#lib/components/ui/checkbox/index.js';
+	import * as Select from '#lib/components/ui/select/index.js';
 	import LoanedToggle from '#lib/components/LoanedToggle.svelte';
 
 	let { data } = $props();
@@ -33,65 +39,48 @@
 	const tenant = getTenant();
 	const canEdit = $derived(tenant.can('EDIT'));
 
-	/** Selected kits: kit id → quantity. */
-	const quantities = new SvelteMap<string, number>();
-	/** Included optional groups as `kitId/groupIndex`. */
-	const includedGroups = new SvelteSet<string>();
+	/** The lines of the packing list in their order; the same kit can be on several lines with other choices. */
+	// svelte-ignore state_referenced_locally
+	let lines: PackingLine[] = $state(parseSelection(page.url.searchParams, data.kits));
 	let copied = $state(false);
 
 	// The packing list lives in the URL (see parseSelection), so it survives reloads and can be shared as a link.
-	function restore(selection: PackingSelection) {
-		quantities.clear();
-		includedGroups.clear();
-		for (const [kitId, { quantity, includedGroups: groups }] of selection) {
-			quantities.set(kitId, quantity);
-			for (const index of groups) includedGroups.add(`${kitId}/${index}`);
-		}
-	}
-	// svelte-ignore state_referenced_locally
-	restore(parseSelection(page.url.searchParams, data.kits));
 	/** replaceState only works once the router has started. */
 	let routerReady = $state(false);
 	afterNavigate(({ type }) => {
-		if (type !== 'enter') restore(parseSelection(page.url.searchParams, data.kits));
+		if (type !== 'enter') lines = parseSelection(page.url.searchParams, data.kits);
 		routerReady = true;
 	});
 
-	const selection: PackingSelection = $derived(
-		new Map(
-			[...quantities].map(([kitId, quantity]) => [
-				kitId,
-				{ quantity, includedGroups: includedIndices(kitId) }
-			])
-		)
-	);
-
 	$effect(() => {
 		if (!routerReady) return;
-		// Based on `location`, not `page`: this effect must only depend on the selection, since replaceState changes
+		// Based on `location`, not `page`: this effect must only depend on the lines, since replaceState changes
 		// `page.state`.
 		const url = new URL(location.href);
 		url.searchParams.delete('kit');
-		for (const value of serializeSelection(selection)) url.searchParams.append('kit', value);
+		for (const value of serializeSelection(lines)) url.searchParams.append('kit', value);
 		if (url.search !== location.search) replaceState(url, {});
 	});
 
 	const materials = $derived(new Map(data.materials.map((material) => [material.id, material])));
 	const kits = $derived(new Map(data.kits.map((kit) => [kit.id, kit])));
-	const selectedKits = $derived(data.kits.filter((kit) => quantities.has(kit.id)));
-	const kitCount = $derived([...quantities.values()].reduce((sum, quantity) => sum + quantity, 0));
+	const kitCount = $derived(lines.reduce((sum, line) => sum + line.quantity, 0));
 
-	const allocation = $derived.by(() => {
-		const selections = selectedKits.map((kit) => ({
-			kit,
-			quantity: quantities.get(kit.id)!,
-			includedGroups: includedIndices(kit.id)
-		}));
-		const stock = new Map(data.materials.map((material) => [material.id, availableNow(material)]));
-		return allocate(selections, stock);
-	});
+	/** Identical lines combined, for the allocation, the summary and the printed list. */
+	const combined = $derived(
+		combineLines(lines).flatMap((line) => {
+			const kit = kits.get(line.kitId);
+			return kit ? [{ ...line, kit }] : [];
+		})
+	);
+	const labels = $derived(combined.map((line) => lineLabel(line, nameOf)));
+
+	const stock = $derived(
+		new Map(data.materials.map((material) => [material.id, availableNow(material)]))
+	);
+	const allocation = $derived(allocate(combined, stock));
 	const needs = $derived(
-		allocation.needs
+		needsOf(allocation.assignments, stock)
 			.map((need) => {
 				const material = materials.get(need.materialId);
 				return {
@@ -107,7 +96,7 @@
 	);
 	const shortages = $derived(
 		allocation.shortages.map((shortage) =>
-			describeShortage(shortage, kits.get(shortage.kitId)!, nameOf)
+			describeShortage(shortage, combined[shortage.line], nameOf)
 		)
 	);
 	/** Needs grouped by storage location for the printed list. */
@@ -118,17 +107,8 @@
 		)
 	]);
 	const selectedSummary = $derived(
-		selectedKits.map((kit) => `${quantities.get(kit.id)}× ${kit.name}`).join(', ')
+		combined.map((line, index) => `${line.quantity}× ${labels[index]}`).join(', ')
 	);
-
-	function includedIndices(kitId: string) {
-		const kit = kits.get(kitId);
-		return new Set(
-			(kit?.groups ?? []).flatMap((_, index) =>
-				includedGroups.has(`${kitId}/${index}`) ? [index] : []
-			)
-		);
-	}
 
 	function availableOf(materialId: string) {
 		const material = materials.get(materialId);
@@ -148,28 +128,74 @@
 		return Math.ceil(units / unitValue);
 	}
 
-	function setQuantity(kitId: string, quantity: number) {
-		if (quantity > 0) quantities.set(kitId, quantity);
-		else quantities.delete(kitId);
+	/**
+	 * The units of a group shown like a group with a single amount: its amount, or for an optional group ("ohne" = 0,
+	 * "mit" = 12) the amount it is packed with.
+	 */
+	function singleUnits(group: KitGroup): number | undefined {
+		const [first, second, ...rest] = group.amounts;
+		if (!second) return first?.requiredUnits;
+		if (rest.length === 0 && (first.requiredUnits === 0 || second.requiredUnits === 0)) {
+			return first.requiredUnits + second.requiredUnits;
+		}
 	}
 
-	function toggleGroup(key: string, include: boolean) {
-		if (include) includedGroups.add(key);
-		else includedGroups.delete(key);
+	/** The amounts of a group, e.g. "Einbein 1× (Standard) · Dreibein 3×", in pieces of [unitValue] or in units. */
+	function amountsText(group: KitGroup, unitValue?: number) {
+		return group.amounts
+			.map((amount, index) => {
+				const units = amount.requiredUnits;
+				const count =
+					units === 0 ? '' : unitValue ? ` ${piecesFor(units, unitValue)}×` : ` ${units}`;
+				return `${amount.label}${count}${index === 0 ? ' (Standard)' : ''}`;
+			})
+			.join(' · ');
+	}
+
+	/** An amount in the line's select, e.g. "Dreibein · 3× Jurtenstange", "Groß · 9 Einheiten" or "ohne". */
+	function amountOption(group: KitGroup, { label, requiredUnits }: KitGroupAmount) {
+		if (requiredUnits === 0) return label ?? '';
+		const [single] = group.options.length === 1 ? group.options : [];
+		const count = single
+			? `${piecesFor(requiredUnits, single.unitValue)}× ${nameOf(single.materialId)}`
+			: `${requiredUnits} Einheiten`;
+		return `${label} · ${count}`;
+	}
+
+	function linesOf(kit: Kit) {
+		return lines.filter((line) => line.kitId === kit.id);
+	}
+
+	/** Adds [kit] with the default choices, to the line that already has them if there is one. */
+	function addKit(kit: Kit) {
+		const existing = linesOf(kit).find((line) => line.choices.every((choice) => choice === 0));
+		if (existing) existing.quantity++;
+		else lines.push(newLine(kit));
+	}
+
+	/** Adds a copy of [line] with quantity 1 below it, to choose other amounts for it. */
+	function addCopy(line: PackingLine) {
+		lines.splice(lines.indexOf(line) + 1, 0, { ...line, quantity: 1, choices: [...line.choices] });
+	}
+
+	function setQuantity(line: PackingLine, quantity: number) {
+		if (quantity > 0) line.quantity = quantity;
+		else lines.splice(lines.indexOf(line), 1);
 	}
 
 	function listText() {
-		const lines = [`Packliste: ${selectedSummary}`];
+		const text = [`Packliste: ${selectedSummary}`];
 		for (const [location, located] of needsByLocation) {
-			lines.push('', location);
+			text.push('', location);
 			for (const need of located) {
 				const detail = need.place.detail ? ` (${need.place.detail})` : '';
 				const missing = need.missing > 0 ? ` – ${missingText(need.missing)}` : '';
-				lines.push(`- ${need.required}× ${need.name}${detail}${missing}`);
+				text.push(`- ${need.required}× ${need.name}${detail}${missing}`);
 			}
 		}
-		if (shortages.length > 0) lines.push('', 'Fehlt:', ...shortages.map((text) => `- ${text}`));
-		return lines.join('\n');
+		if (shortages.length > 0)
+			text.push('', 'Fehlt:', ...shortages.map((shortage) => `- ${shortage}`));
+		return text.join('\n');
 	}
 
 	async function copyList() {
@@ -198,29 +224,29 @@
 	</span>
 {/snippet}
 
-{#snippet quantityButtons(kitId: string, name: string, quantity: number)}
+{#snippet quantityButtons(line: PackingLine, name: string)}
 	<Button
 		variant="outline"
 		size="icon-sm"
 		aria-label="Weniger {name}"
-		onclick={() => setQuantity(kitId, quantity - 1)}
+		onclick={() => setQuantity(line, line.quantity - 1)}
 	>
 		<MinusIcon />
 	</Button>
 	<span class="w-6 text-center font-medium tabular-nums"
-		>{quantity}<span class="sr-only">× {name}</span></span
+		>{line.quantity}<span class="sr-only">× {name}</span></span
 	>
 	<Button
 		variant="outline"
 		size="icon-sm"
 		aria-label="Mehr {name}"
-		onclick={() => setQuantity(kitId, quantity + 1)}
+		onclick={() => setQuantity(line, line.quantity + 1)}
 	>
 		<PlusIcon />
 	</Button>
 {/snippet}
 
-<div class={['space-y-4 print:hidden', selectedKits.length > 0 && 'pb-14 lg:pb-0']}>
+<div class={['space-y-4 print:hidden', lines.length > 0 && 'pb-14 lg:pb-0']}>
 	<div class="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
 		<div>
 			<h1 class="text-2xl font-bold tracking-tight">Sets</h1>
@@ -234,7 +260,9 @@
 	<div class="grid gap-6 lg:grid-cols-3">
 		<div class="grid content-start gap-4 sm:grid-cols-2 lg:col-span-2">
 			{#each data.kits as kit (kit.id)}
-				{@const quantity = quantities.get(kit.id) ?? 0}
+				{@const choices = hasChoices(kit)}
+				{@const kitLines = linesOf(kit)}
+				{@const quantity = kitLines.reduce((sum, line) => sum + line.quantity, 0)}
 				<Card.Root>
 					<Card.Header>
 						<Card.Title>{kit.name}</Card.Title>
@@ -256,46 +284,51 @@
 					<Card.Content>
 						<ul class="space-y-2 text-sm">
 							{#each kit.groups as group, index (index)}
-								{@const key = `${kit.id}/${index}`}
-								{@const excluded = group.isOptional && !includedGroups.has(key)}
+								{@const units = singleUnits(group)}
 								{@const [single] = group.options.length === 1 ? group.options : []}
-								<li class={excluded ? 'text-muted-foreground' : ''}>
+								<li>
 									<div class="flex items-center gap-2">
-										{#if group.isOptional}
-											<Checkbox
-												id={key}
-												checked={includedGroups.has(key)}
-												onCheckedChange={(checked) => toggleGroup(key, checked)}
-											/>
-										{/if}
-										<label for={key} class="flex-1">
-											{#if single}
-												{piecesFor(group.requiredUnits, single.unitValue)}× {nameOf(
-													single.materialId
-												)}
+										<span class="flex-1">
+											{#if single && units !== undefined}
+												{piecesFor(units, single.unitValue)}× {nameOf(single.materialId)}
 												{#if group.name}<span class="text-muted-foreground">({group.name})</span
 													>{/if}
+											{:else if single}
+												{#if group.name}{group.name}:{/if}
+												{amountsText(group, single.unitValue)}
+												{nameOf(single.materialId)}
 											{:else}
 												{group.name ?? 'Alternativen'}
-												<span class="text-muted-foreground">· {group.requiredUnits} Einheiten</span>
+												<span class="text-muted-foreground"
+													>· {units ?? amountsText(group)} Einheiten</span
+												>
 											{/if}
-										</label>
-										{#if group.isOptional}<Badge variant="outline">optional</Badge>{/if}
+										</span>
+										{#if units !== undefined && group.amounts.length > 1}
+											<Badge variant="outline">optional</Badge>
+										{/if}
 										{#if single}
 											{@render availability(
 												single.materialId,
-												piecesFor(group.requiredUnits, single.unitValue)
+												piecesFor(units ?? group.amounts[0].requiredUnits, single.unitValue)
 											)}
 										{/if}
 									</div>
 									{#if !single}
 										<ul class="mt-1 ml-1 space-y-0.5 border-l pl-2 text-xs">
 											{#each group.options.toSorted((a, b) => a.priority - b.priority) as option, rank (option.materialId)}
-												{@const pieces = piecesFor(group.requiredUnits, option.unitValue)}
 												<li class="flex items-center gap-1.5">
 													<span class="flex-1">
 														{#if rank > 0}<span class="text-muted-foreground">oder</span>{/if}
-														{pieces}× {nameOf(option.materialId)}
+														{#if units !== undefined}
+															{piecesFor(units, option.unitValue)}× {nameOf(option.materialId)}
+														{:else}
+															{nameOf(option.materialId)}
+															<span class="text-muted-foreground"
+																>({option.unitValue}
+																{option.unitValue === 1 ? 'Einheit' : 'Einheiten'})</span
+															>
+														{/if}
 														{#if rank === 0}
 															<Badge variant="secondary" class="ml-1 px-1.5 py-0 text-[0.7rem]"
 																>bevorzugt</Badge
@@ -311,17 +344,34 @@
 							{/each}
 						</ul>
 					</Card.Content>
-					<Card.Footer class="gap-2">
-						{#if quantity > 0}
-							{@render quantityButtons(kit.id, kit.name, quantity)}
-							<span class="text-sm text-muted-foreground">auf der Packliste</span>
-						{:else}
+					<Card.Footer class="flex-wrap gap-2">
+						{#if quantity === 0}
 							<Button
 								size="sm"
 								class="flex-1"
 								aria-label="{kit.name} zur Packliste hinzufügen"
-								onclick={() => setQuantity(kit.id, 1)}><PlusIcon />Zur Packliste</Button
+								onclick={() => addKit(kit)}><PlusIcon />Zur Packliste</Button
 							>
+						{:else if !choices}
+							{@render quantityButtons(kitLines[0], kit.name)}
+							<span class="text-sm text-muted-foreground">auf der Packliste</span>
+						{:else}
+							<Button
+								variant="outline"
+								size="icon-sm"
+								aria-label="Noch ein {kit.name} zur Packliste hinzufügen"
+								title="Zur Packliste"
+								onclick={() => addKit(kit)}
+							>
+								<PlusIcon />
+							</Button>
+							<span class="text-sm text-muted-foreground">
+								<span class="font-medium text-foreground tabular-nums">{quantity}</span> auf der
+								Packliste ·
+								<a href="#packliste" class="underline underline-offset-2"
+									>Ausführung in der Packliste wählen</a
+								>
+							</span>
 						{/if}
 					</Card.Footer>
 				</Card.Root>
@@ -337,7 +387,7 @@
 		>
 			<div class="flex items-center justify-between gap-2">
 				<h2 id="packliste-heading" class="text-lg font-semibold">Packliste</h2>
-				{#if selectedKits.length > 0}
+				{#if lines.length > 0}
 					<div class="flex">
 						<Button
 							variant="ghost"
@@ -357,13 +407,13 @@
 						>
 							<PrinterIcon />
 						</Button>
-						<Button variant="ghost" size="sm" onclick={() => quantities.clear()}>Leeren</Button>
+						<Button variant="ghost" size="sm" onclick={() => (lines = [])}>Leeren</Button>
 					</div>
 				{/if}
 			</div>
 			<LoanedToggle />
 
-			{#if selectedKits.length === 0}
+			{#if lines.length === 0}
 				<p class="text-sm text-muted-foreground">
 					Füge Sets hinzu, um zu sehen, welche Materialien sie brauchen.
 				</p>
@@ -373,21 +423,62 @@
 						<Card.Title>Ausgewählte Sets</Card.Title>
 					</Card.Header>
 					<Card.Content>
-						<ul class="space-y-1 text-sm">
-							{#each selectedKits as kit (kit.id)}
-								<li class="flex items-center gap-1">
-									<span class="flex-1">{kit.name}</span>
-									{@render quantityButtons(kit.id, kit.name, quantities.get(kit.id) ?? 0)}
-									<Button
-										variant="ghost"
-										size="icon-sm"
-										aria-label="{kit.name} von der Packliste entfernen"
-										title="Entfernen"
-										onclick={() => setQuantity(kit.id, 0)}
-									>
-										<Trash2Icon />
-									</Button>
-								</li>
+						<ul class="space-y-3 text-sm">
+							{#each lines as line (line)}
+								{@const kit = kits.get(line.kitId)}
+								{#if kit}
+									{@const label = lineLabel({ kit, choices: line.choices }, nameOf)}
+									<li class="space-y-1.5">
+										<div class="flex items-center gap-1">
+											<span class="flex-1">{kit.name}</span>
+											{@render quantityButtons(line, label)}
+											<Button
+												variant="ghost"
+												size="icon-sm"
+												aria-label="{label} von der Packliste entfernen"
+												title="Entfernen"
+												onclick={() => setQuantity(line, 0)}
+											>
+												<Trash2Icon />
+											</Button>
+										</div>
+										{#if hasChoices(kit)}
+											<div class="flex flex-wrap items-center gap-1.5">
+												{#each kit.groups as group, g (g)}
+													{#if group.amounts.length > 1}
+														{@const name = groupLabel(group, nameOf)}
+														<Select.Root
+															type="single"
+															value={String(line.choices[g])}
+															onValueChange={(value) => (line.choices[g] = Number(value))}
+														>
+															<Select.Trigger size="sm" aria-label="{name} für {kit.name}">
+																{name}: {group.amounts[line.choices[g]]?.label}
+															</Select.Trigger>
+															<Select.Content>
+																{#each group.amounts as amount, a (a)}
+																	<Select.Item
+																		value={String(a)}
+																		label={amountOption(group, amount)}
+																	/>
+																{/each}
+															</Select.Content>
+														</Select.Root>
+													{/if}
+												{/each}
+												<Button
+													variant="ghost"
+													size="sm"
+													class="h-7 text-muted-foreground"
+													aria-label="Weiteres {kit.name} mit anderer Ausführung"
+													onclick={() => addCopy(line)}
+												>
+													<CopyPlusIcon />Weitere mit anderer Ausführung
+												</Button>
+											</div>
+										{/if}
+									</li>
+								{/if}
 							{/each}
 						</ul>
 					</Card.Content>
@@ -428,9 +519,9 @@
 									</div>
 									<p class="text-xs text-muted-foreground">
 										{[need.place.location, need.place.detail].filter(Boolean).join(': ')}
-										{#if need.byKit.length > 1}
-											· {need.byKit
-												.map((part) => `${part.quantity}× für ${kits.get(part.kitId)?.name}`)
+										{#if need.byLine.length > 1}
+											· {need.byLine
+												.map((part) => `${part.pieces}× für ${labels[part.line]}`)
 												.join(', ')}
 										{/if}
 									</p>
@@ -445,7 +536,7 @@
 </div>
 
 <!-- On phones the packing list is below all kits; this bar jumps there. It sits above the bottom navigation. -->
-{#if selectedKits.length > 0}
+{#if lines.length > 0}
 	<div class="fixed inset-x-0 bottom-16 z-40 px-4 pb-2 sm:bottom-0 lg:hidden print:hidden">
 		<Button href="#packliste" class="h-11 w-full shadow-lg">
 			Packliste ({kitCount}

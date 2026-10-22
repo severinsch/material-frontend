@@ -1,7 +1,9 @@
 import { describe, expect, it } from 'vitest';
 import type { IndividualItem, Kit, Material } from '#lib/api/index.js';
 import {
+	combineLines,
 	describeShortage,
+	lineLabel,
 	parseSelection,
 	placeOf,
 	serializeSelection,
@@ -13,72 +15,128 @@ const jurte: Kit = {
 	name: 'Jurte',
 	groups: [
 		{
-			requiredUnits: 30,
-			isOptional: false,
+			amounts: [{ label: null, requiredUnits: 30 }],
 			options: [{ materialId: 'hering', unitValue: 1, priority: 0 }]
 		},
 		{
 			name: 'Dach',
-			requiredUnits: 6,
-			isOptional: false,
+			amounts: [{ label: null, requiredUnits: 6 }],
 			options: [
 				{ materialId: 'kohtenblatt', unitValue: 1, priority: 1 },
 				{ materialId: 'halbdach', unitValue: 3, priority: 0 }
 			]
 		},
 		{
-			requiredUnits: 8,
-			isOptional: true,
+			name: 'Mittelstange',
+			amounts: [
+				{ label: 'Einbein', requiredUnits: 1 },
+				{ label: 'Dreibein', requiredUnits: 3 }
+			],
+			options: [{ materialId: 'stange', unitValue: 1, priority: 0 }]
+		},
+		{
+			amounts: [
+				{ label: 'ohne', requiredUnits: 0 },
+				{ label: 'mit', requiredUnits: 8 }
+			],
 			options: [{ materialId: 'fenster', unitValue: 1, priority: 0 }]
 		}
 	]
 };
 
+const names: Record<string, string> = {
+	hering: 'Hering',
+	halbdach: 'Jurtenhalbdach',
+	kohtenblatt: 'Kohtenblatt',
+	stange: 'Jurtenstange',
+	fenster: 'Fensterplane'
+};
+const nameOf = (id: string) => names[id];
+
 describe('selection in the URL', () => {
-	it('round-trips quantities and included optional groups', () => {
-		const selection = new Map([['jurte', { quantity: 2, includedGroups: new Set([2]) }]]);
-		const params = new URLSearchParams(serializeSelection(selection).map((v) => ['kit', v]));
-		expect(params.toString()).toBe('kit=jurte*2*2');
-		expect(parseSelection(params, [jurte])).toEqual(selection);
+	it('round-trips lines with their non-default choices', () => {
+		const lines = [
+			{ kitId: 'jurte', quantity: 2, choices: [0, 0, 0, 1] },
+			{ kitId: 'jurte', quantity: 1, choices: [0, 0, 1, 0] },
+			{ kitId: 'jurte', quantity: 3, choices: [0, 0, 0, 0] }
+		];
+		const params = new URLSearchParams(serializeSelection(lines).map((v) => ['kit', v]));
+		expect(params.toString()).toBe('kit=jurte*2*3-1&kit=jurte*1*2-1&kit=jurte*3');
+		expect(parseSelection(params, [jurte])).toEqual(lines);
 	});
 
-	it('ignores unknown kits, bad quantities and non-optional groups', () => {
-		const params = new URLSearchParams('kit=kohte*1&kit=jurte*x&kit=jurte*1*0.1.2.9');
-		expect(parseSelection(params, [jurte])).toEqual(
-			new Map([['jurte', { quantity: 1, includedGroups: new Set([2]) }]])
+	it('lists several choices of a line', () => {
+		const lines = [{ kitId: 'jurte', quantity: 1, choices: [0, 0, 1, 1] }];
+		expect(serializeSelection(lines)).toEqual(['jurte*1*2-1.3-1']);
+	});
+
+	it('ignores unknown kits, bad quantities and choices that the kit lacks', () => {
+		const params = new URLSearchParams(
+			'kit=kohte*1&kit=jurte*x&kit=jurte*0&kit=jurte*1*0-1.2-2.9-1.3-1.2.-1.x-1.3-'
 		);
+		expect(parseSelection(params, [jurte])).toEqual([
+			{ kitId: 'jurte', quantity: 1, choices: [0, 0, 0, 1] }
+		]);
 	});
 
-	it('includes no optional group when none is listed', () => {
-		const optionalFirst: Kit = { ...jurte, groups: jurte.groups.toReversed() };
+	it('uses the default amounts when no choice is listed', () => {
 		const params = new URLSearchParams('kit=jurte*1');
-		expect(parseSelection(params, [optionalFirst])).toEqual(
-			new Map([['jurte', { quantity: 1, includedGroups: new Set() }]])
+		expect(parseSelection(params, [jurte])).toEqual([
+			{ kitId: 'jurte', quantity: 1, choices: [0, 0, 0, 0] }
+		]);
+	});
+});
+
+describe('lines', () => {
+	it('names the chosen amount of groups with several', () => {
+		expect(lineLabel({ kit: jurte, choices: [0, 0, 1, 1] }, nameOf)).toBe(
+			'Jurte (Mittelstange: Dreibein, Fensterplane: mit)'
 		);
+		const kohte: Kit = { ...jurte, name: 'Kohte', groups: jurte.groups.slice(0, 2) };
+		expect(lineLabel({ kit: kohte, choices: [0, 0] }, nameOf)).toBe('Kohte');
+	});
+
+	it('combines identical lines in the order of their first appearance', () => {
+		const lines = [
+			{ kitId: 'jurte', quantity: 2, choices: [0, 0, 0, 0] },
+			{ kitId: 'jurte', quantity: 1, choices: [0, 0, 1, 0] },
+			{ kitId: 'kohte', quantity: 1, choices: [0] },
+			{ kitId: 'jurte', quantity: 1, choices: [0, 0, 0, 0] }
+		];
+		expect(combineLines(lines)).toEqual([
+			{ kitId: 'jurte', quantity: 3, choices: [0, 0, 0, 0] },
+			{ kitId: 'jurte', quantity: 1, choices: [0, 0, 1, 0] },
+			{ kitId: 'kohte', quantity: 1, choices: [0] }
+		]);
+		expect(lines[0].quantity).toBe(2);
 	});
 });
 
 describe('describeShortage', () => {
-	const names: Record<string, string> = {
-		hering: 'Hering',
-		halbdach: 'Jurtenhalbdach',
-		kohtenblatt: 'Kohtenblatt'
-	};
-	const nameOf = (id: string) => names[id];
+	const line = { kit: jurte, choices: [0, 0, 1, 0] };
 
 	it('lists the alternatives that could fill the missing units', () => {
-		expect(
-			describeShortage({ kitId: 'jurte', groupIndex: 1, missingUnits: 5 }, jurte, nameOf)
-		).toBe('Jurte – Dach: 5 Einheiten fehlen (2× Jurtenhalbdach oder 5× Kohtenblatt)');
+		expect(describeShortage({ line: 0, groupIndex: 1, missingUnits: 5 }, line, nameOf)).toBe(
+			'Jurte (Mittelstange: Dreibein, Fensterplane: ohne) – Dach: 5 Einheiten fehlen (2× Jurtenhalbdach oder 5× Kohtenblatt)'
+		);
 	});
 
 	it('names the pieces of a single material', () => {
+		const kohte: Kit = { ...jurte, name: 'Kohte', groups: jurte.groups.slice(0, 1) };
 		expect(
-			describeShortage({ kitId: 'jurte', groupIndex: 0, missingUnits: 3 }, jurte, nameOf)
-		).toBe('Jurte: 3× Hering fehlen');
+			describeShortage(
+				{ line: 0, groupIndex: 0, missingUnits: 3 },
+				{ kit: kohte, choices: [0] },
+				nameOf
+			)
+		).toBe('Kohte: 3× Hering fehlen');
 		expect(
-			describeShortage({ kitId: 'jurte', groupIndex: 0, missingUnits: 1 }, jurte, nameOf)
-		).toBe('Jurte: 1× Hering fehlt');
+			describeShortage(
+				{ line: 0, groupIndex: 0, missingUnits: 1 },
+				{ kit: kohte, choices: [0] },
+				nameOf
+			)
+		).toBe('Kohte: 1× Hering fehlt');
 	});
 });
 

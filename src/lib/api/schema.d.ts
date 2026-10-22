@@ -3830,6 +3830,11 @@ export interface components {
             /** @enum {string|null} */
             itemStatus?: "ACTIVE" | "IN_REPAIR" | "LOST" | "DECOMMISSIONED" | null;
         };
+        /** KitGroupAmount */
+        KitGroupAmount: {
+            label?: string | null;
+            requiredUnits: number;
+        };
         /** KitGroupOption */
         KitGroupOption: {
             /** Format: uuid */
@@ -3840,8 +3845,7 @@ export interface components {
         /** KitGroup */
         KitGroup: {
             name?: string | null;
-            requiredUnits: number;
-            isOptional: boolean;
+            amounts: components["schemas"]["KitGroupAmount"][];
             options: components["schemas"]["KitGroupOption"][];
         };
         /** Kit */
@@ -3851,6 +3855,11 @@ export interface components {
             name: string;
             description?: string | null;
             groups: components["schemas"]["KitGroup"][];
+        };
+        /** NewKitGroupAmount */
+        NewKitGroupAmount: {
+            label?: string | null;
+            requiredUnits: number;
         };
         /** NewKitGroupOption */
         NewKitGroupOption: {
@@ -3862,8 +3871,7 @@ export interface components {
         /** NewKitGroup */
         NewKitGroup: {
             name?: string | null;
-            requiredUnits: number;
-            isOptional?: boolean;
+            amounts: components["schemas"]["NewKitGroupAmount"][];
             options: components["schemas"]["NewKitGroupOption"][];
         };
         /** NewKit */

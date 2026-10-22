@@ -1,6 +1,14 @@
 import { describe, expect, it } from 'vitest';
 import type { Material } from '#lib/api/index.js';
-import { itemName, itemNameOf, variantName, variantNameOf, variantsById } from './format.js';
+import {
+	itemName,
+	itemNameOf,
+	variantName,
+	variantNameOf,
+	variantOf,
+	variantsById,
+	variantsError
+} from './format.js';
 
 const seil = {
 	id: 'seil',
@@ -42,5 +50,32 @@ describe('names', () => {
 		expect(itemNameOf(variants, { variantId: 'plane-1', identifier: 'K02' })).toBe(
 			'Kohtenplane K02'
 		);
+	});
+
+	it("looks up a material's variant, unnamed if it's gone", () => {
+		expect(variantOf(seil, 'seil-15')).toBe(seil.variants[1]);
+		expect(variantOf(seil, 'gone')).toEqual({ name: null });
+		expect(variantName(seil, variantOf(seil, 'gone'))).toBe('Seil');
+	});
+});
+
+describe('variantsError', () => {
+	it('accepts a single variant with or without a name', () => {
+		expect(variantsError([''])).toBeUndefined();
+		expect(variantsError(['10 m'])).toBeUndefined();
+		expect(variantsError(['10 m', '15 m'])).toBeUndefined();
+	});
+
+	it('needs a name for each of several variants, like the API', () => {
+		expect(variantsError(['10 m', ' '])).toBe(
+			'Hat ein Material mehrere Varianten, braucht jede einen Namen.'
+		);
+	});
+
+	it('needs distinct names, compared as sent (trimmed, case-sensitive)', () => {
+		expect(variantsError(['10 m', '10 m '])).toBe(
+			'Die Varianten eines Materials brauchen unterschiedliche Namen.'
+		);
+		expect(variantsError(['groß', 'Groß'])).toBeUndefined();
 	});
 });

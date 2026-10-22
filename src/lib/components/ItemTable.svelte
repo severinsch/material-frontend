@@ -7,11 +7,10 @@
 		mutate,
 		type IndividualItem,
 		type IndividualMaterial,
-		type IndividualVariant,
 		type ItemStatus,
 		type StorageLocation
 	} from '#lib/api/index.js';
-	import { conditionLabels, formatDate, itemName, statusLabels } from '#lib/format.js';
+	import { conditionLabels, formatDate, itemName, statusLabels, variantOf } from '#lib/format.js';
 	import { availableNow } from '#lib/settings.svelte.js';
 	import { getTenant } from '#lib/tenant.js';
 	import { Badge } from '#lib/components/ui/badge/index.js';
@@ -56,9 +55,8 @@
 		}))
 	);
 
-	const variantOf = (item: IndividualItem): Pick<IndividualVariant, 'name'> =>
-		material.variants.find((variant) => variant.id === item.variantId) ?? { name: null };
-	const nameOf = (item: IndividualItem) => itemName(material, variantOf(item), item);
+	const nameOf = (item: IndividualItem) =>
+		itemName(material, variantOf(material, item.variantId), item);
 	const locationOf = (item: IndividualItem) =>
 		[item.storageLocation?.name, item.locationDetail].filter(Boolean).join(', ');
 

@@ -7,7 +7,8 @@ import {
 	parseSelection,
 	placeOf,
 	serializeSelection,
-	SEVERAL_LOCATIONS
+	SEVERAL_LOCATIONS,
+	variantsToFind
 } from './packing.js';
 
 const jurte: Kit = {
@@ -221,5 +222,24 @@ describe('placeOf', () => {
 			location: SEVERAL_LOCATIONS,
 			detail: 'Garage (20 m), Keller (10 m, 15 m)'
 		});
+	});
+});
+
+describe('variantsToFind', () => {
+	const variantIds = new Map([['seil', ['10', '15', '20']]]);
+	const need = (variantId: string | null, ...from: string[]) => ({
+		materialId: 'seil',
+		variantId,
+		variantIds: from
+	});
+
+	it('looks where the pieces are taken from', () => {
+		expect(variantsToFind(need('15', '15'), variantIds)).toEqual(['15']);
+		expect(variantsToFind(need(null, '10', '20'), variantIds)).toEqual(['10', '20']);
+	});
+
+	it('looks for the variant itself, or any of the material, if all pieces are missing', () => {
+		expect(variantsToFind(need('20'), variantIds)).toEqual(['20']);
+		expect(variantsToFind(need(null), variantIds)).toEqual(['10', '15', '20']);
 	});
 });

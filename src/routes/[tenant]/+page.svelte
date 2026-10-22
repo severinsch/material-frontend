@@ -352,6 +352,6 @@
 	</div>
 </div>
 
-<MaterialDialog bind:this={materialDialog} locations={data.locations} />
+<MaterialDialog bind:this={materialDialog} locations={data.locations} items={data.items} />
 <MergeDialog bind:this={mergeDialog} kits={data.kits} />
 <ConfirmDelete bind:this={confirmDelete} />

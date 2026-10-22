@@ -10,6 +10,7 @@
 		description,
 		submitLabel = 'Speichern',
 		destructive = false,
+		submitDisabled = false,
 		onsubmit,
 		class: className,
 		children
@@ -19,6 +20,8 @@
 		description?: string;
 		submitLabel?: string;
 		destructive?: boolean;
+		/** Disables the submit button (and so submitting with Enter), e.g. while the dialog says why it would fail. */
+		submitDisabled?: boolean;
 		/** Returns whether the dialog can close. */
 		onsubmit: () => Promise<boolean>;
 		/** Classes of the dialog, e.g. to make it wider. */
@@ -53,7 +56,11 @@
 				<Button variant="outline" type="button" onclick={() => (open = false)} disabled={saving}>
 					Abbrechen
 				</Button>
-				<Button type="submit" variant={destructive ? 'destructive' : 'default'} disabled={saving}>
+				<Button
+					type="submit"
+					variant={destructive ? 'destructive' : 'default'}
+					disabled={saving || submitDisabled}
+				>
 					{#if saving}<LoaderIcon class="animate-spin" />{/if}
 					{submitLabel}
 				</Button>

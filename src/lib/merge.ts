@@ -64,30 +64,78 @@ export function suggestMerge(materials: readonly Mergeable[]): {
 	return { name: prefix || (materials[0]?.name ?? ''), variantNames };
 }
 
+/** E.g. "im Set Jurte" or "in den Sets Jurte, Kohte", as in the API's messages. */
+function inKits(names: string[]): string {
+	return names.length === 1 ? `im Set ${names[0]}` : `in den Sets ${names.join(', ')}`;
+}
+
+const byName = (a: string, b: string) => a.localeCompare(b, undefined, { numeric: true });
+
 /**
- * The names of the [kits] that use any of [materials] (the target first), sorted. They keep using the same variants
- * ([same]), since the API turns "any variant" of a material with a single variant into that variant. Only "any
- * variant" of a target that already has several stays, and then includes the variants it gains ([widened]).
+ * What happens to the [kits] that use any of [materials] (the target first), by kit name, sorted. Most keep using the
+ * same variants ([same]), since the API turns "any variant" of a material with a single variant into that variant.
+ * "Any variant" of a target that already has several stays, and then includes the variants it gains ([widened]).
+ *
+ * The API rejects the merge in two cases, which [blocked] explains with its messages, one per material: a source with
+ * several variants used with "any variant", which can't be expressed afterwards, and "any variant" of a target with
+ * several variants in a group that also lists a source, which would overlap afterwards.
  */
 export function kitsAfterMerge(
 	kits: readonly Pick<Kit, 'name' | 'groups'>[],
-	materials: readonly (Pick<Material, 'id'> & { variants: readonly unknown[] })[]
-): { same: string[]; widened: string[] } {
-	const [target] = materials;
+	materials: readonly (Pick<Material, 'id' | 'name'> & { variants: readonly unknown[] })[]
+): { same: string[]; widened: string[]; blocked: string[] } {
+	const [target, ...sources] = materials;
+	if (!target) return { same: [], widened: [], blocked: [] };
 	const ids = new Set(materials.map((material) => material.id));
+	const sourceIds = new Set(sources.map((material) => material.id));
+	const several = (material: { variants: readonly unknown[] }) => material.variants.length > 1;
+	/** Kits that make the merge fail, by the material they use with "any variant". */
+	const anySource = new Map(
+		sources.filter(several).map((source) => [source.id, new Set<string>()])
+	);
+	const overlapping = new Set<string>();
 	const same: string[] = [];
 	const widened: string[] = [];
 	for (const kit of kits) {
+		let blocked = false;
+		for (const { options } of kit.groups) {
+			const anyOf = (id: string) => options.some((o) => o.materialId === id && !o.variantId);
+			for (const [id, kitNames] of anySource) {
+				if (anyOf(id)) {
+					kitNames.add(kit.name);
+					blocked = true;
+				}
+			}
+			if (several(target) && anyOf(target.id) && options.some((o) => sourceIds.has(o.materialId))) {
+				overlapping.add(kit.name);
+				blocked = true;
+			}
+		}
+		if (blocked) continue;
 		const options = kit.groups.flatMap((group) => group.options);
-		if (
-			target?.variants.length > 1 &&
-			options.some((option) => option.materialId === target.id && !option.variantId)
-		) {
+		if (several(target) && options.some((o) => o.materialId === target.id && !o.variantId)) {
 			widened.push(kit.name);
 		} else if (options.some((option) => ids.has(option.materialId))) {
 			same.push(kit.name);
 		}
 	}
-	const byName = (a: string, b: string) => a.localeCompare(b, undefined, { numeric: true });
-	return { same: same.sort(byName), widened: widened.sort(byName) };
+
+	const blocked: string[] = [];
+	for (const source of sources) {
+		const kitNames = [...(anySource.get(source.id) ?? [])].sort(byName);
+		if (kitNames.length === 0) continue;
+		blocked.push(
+			`${source.name} wird ${inKits(kitNames)} mit beliebiger Variante verwendet, was sich nach dem ` +
+				'Zusammenführen nicht mehr ausdrücken lässt. Wähle dort zuerst bestimmte Varianten aus, oder führe ' +
+				'die anderen Materialien in dieses zusammen.'
+		);
+	}
+	if (overlapping.size > 0) {
+		blocked.push(
+			`${target.name} wird ${inKits([...overlapping].sort(byName))} mit beliebiger Variante verwendet, ` +
+				'zusammen mit einem der anderen Materialien im selben Teil. Danach würden sich die Materialien des ' +
+				'Teils überschneiden. Entferne zuerst eines davon aus dem Teil.'
+		);
+	}
+	return { same: same.sort(byName), widened: widened.sort(byName), blocked };
 }

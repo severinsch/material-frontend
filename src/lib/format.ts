@@ -49,6 +49,28 @@ export function itemName(
 	return `${variantName(material, variant)} ${item.identifier}`;
 }
 
+/** The variant [variantId] of [material], or an unnamed one if it has no such variant (any more). */
+export function variantOf<V extends Pick<Variant, 'id' | 'name'>>(
+	material: { variants: readonly V[] },
+	variantId: string
+): V | Pick<Variant, 'name'> {
+	return material.variants.find((variant) => variant.id === variantId) ?? { name: null };
+}
+
+/**
+ * Why the variant [names] of one material can't be saved, with the API's messages: with several variants, each
+ * needs a name, unique within the material. Names are compared trimmed, as they are sent.
+ */
+export function variantsError(names: readonly string[]): string | undefined {
+	if (names.length < 2) return;
+	const trimmed = names.map((name) => name.trim());
+	if (trimmed.some((name) => !name))
+		return 'Hat ein Material mehrere Varianten, braucht jede einen Namen.';
+	if (new Set(trimmed).size < trimmed.length) {
+		return 'Die Varianten eines Materials brauchen unterschiedliche Namen.';
+	}
+}
+
 /** A variant together with its material. */
 export interface VariantOf {
 	material: Material;

@@ -13,7 +13,8 @@
 		optionsOf,
 		orNull,
 		statusLabels,
-		variantName
+		variantName,
+		variantOf
 	} from '#lib/format.js';
 	import { nextIdentifier, numberedIdentifiers } from '#lib/identifiers.js';
 	import { getTenant } from '#lib/tenant.js';
@@ -50,16 +51,12 @@
 		material.variants.map((variant) => ({ value: variant.id, label: variant.name ?? '' }))
 	);
 	/** The selected variant's name, e.g. "Kohtenplane 45 cm Latz", or just the material's name. */
-	const name = $derived(variantName(material, variantOf(form.variantId)));
+	const name = $derived(variantName(material, variantOf(material, form.variantId)));
 	const countError = $derived(
 		count > 1 && !numbered
 			? 'Für mehrere Gegenstände muss die Kennung auf eine Zahl enden, z. B. K01.'
 			: null
 	);
-
-	function variantOf(variantId: string) {
-		return material.variants.find((variant) => variant.id === variantId) ?? { name: null };
-	}
 
 	/** The identifier after the highest one of the variant [variantId]; identifiers are unique per variant. */
 	function suggestion(variantId: string) {
@@ -84,7 +81,7 @@
 	/** Opens the dialog to edit [item], or to add new ones to the variant [variantId] (the first by default). */
 	export function show(item?: IndividualItem, variantId?: string) {
 		edited = item ?? null;
-		editedName = item ? itemName(material, variantOf(item.variantId), item) : '';
+		editedName = item ? itemName(material, variantOf(material, item.variantId), item) : '';
 		form = formOf(item, variantId);
 		if (!item) form.identifier = suggestion(form.variantId);
 		count = 1;

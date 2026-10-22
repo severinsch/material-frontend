@@ -1,5 +1,5 @@
 import type { IndividualItem, Kit, KitGroup, KitGroupOption, Material } from '#lib/api/index.js';
-import type { GroupShortage, KitSelection } from './allocate.js';
+import type { GroupShortage, KitSelection, MaterialNeed } from './allocate.js';
 import { isAvailableItem } from '#lib/loans.js';
 
 // Helpers for the packing list on the kits page: its state in the URL, labels of its lines, where to find materials,
@@ -117,6 +117,18 @@ export interface Place {
 
 export const SEVERAL_LOCATIONS = 'Mehrere Lagerorte';
 export const NO_LOCATION = 'Ohne Lagerort';
+
+/**
+ * The variants to look for the pieces of [need]: the ones they are taken from. If all of them are missing, those of
+ * its variant, or of any of its material's [variantIds] (by material id), are welcome.
+ */
+export function variantsToFind(
+	need: Pick<MaterialNeed, 'materialId' | 'variantId' | 'variantIds'>,
+	variantIds: ReadonlyMap<string, readonly string[]>
+): readonly string[] {
+	if (need.variantIds.length > 0) return need.variantIds;
+	return need.variantId ? [need.variantId] : (variantIds.get(need.materialId) ?? []);
+}
 
 /**
  * Where to find the variants [variantIds] of [material]. Bulk variants have their own location; individual ones are

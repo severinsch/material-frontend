@@ -5,17 +5,28 @@
 		id,
 		value = $bindable(),
 		options,
-		placeholder = 'Auswählen…'
+		placeholder = 'Auswählen…',
+		invalid = false,
+		describedby
 	}: {
 		id?: string;
 		value: T;
 		options: { value: T; label: string }[];
 		placeholder?: string;
+		/** Marks the field as invalid, e.g. when a required choice is missing. */
+		invalid?: boolean;
+		/** The id of the element that describes the field, e.g. its error message. */
+		describedby?: string;
 	} = $props();
 </script>
 
 <Select.Root type="single" bind:value>
-	<Select.Trigger {id} class="w-full">
+	<Select.Trigger
+		{id}
+		class="w-full"
+		aria-invalid={invalid || undefined}
+		aria-describedby={describedby}
+	>
 		{options.find((option) => option.value === value)?.label ?? placeholder}
 	</Select.Trigger>
 	<Select.Content>

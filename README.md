@@ -6,11 +6,14 @@ groups keep track of their material, plan what to pack for camps and record what
 ## Features
 
 - **Materials:** bulk materials (counted, e.g. tent pegs) with stock, location and purchases; individual materials
-  (tracked piece by piece, e.g. tents) with their items, condition, status and damage reports.
-- **Kits and packing list:** define kits (e.g. "Jurte") from parts with interchangeable materials; a part can come in
-  several amounts ("Ausführungen", e.g. Einbein or Dreibein, or with and without windows). Select kits, several times
-  with different amounts if needed, to see which materials to pack, where they are stored and what is short. The
-  selection is kept in the URL (shareable), and the list can be printed or copied.
+  (tracked piece by piece, e.g. tents) with their items, condition, status and damage reports. A material can have
+  variants (ropes of 10, 15 and 20 m) with their own stock, location and items; materials that turn out to be
+  variants of one ("Seil 10 m", "Seil 15 m") can be merged on the material list.
+- **Kits and packing list:** define kits (e.g. "Jurte") from parts with interchangeable materials (any variant of a
+  material, or specific ones like "Seil 15 m" and "Seil 20 m"); a part can come in several amounts ("Ausführungen",
+  e.g. Einbein or Dreibein, or with and without windows). Select kits, several times with different amounts if
+  needed, to see which materials to pack, where they are stored and what is short. The selection is kept in the URL
+  (shareable), and the list can be printed or copied.
 - **Loans:** a simple loan book of what was lent to whom, and when it came back. Material is lent by quantity
   ("4 Kohtenblätter"); for individual materials specific items can be picked instead where it matters. Lent out pieces
   can optionally count as unavailable.

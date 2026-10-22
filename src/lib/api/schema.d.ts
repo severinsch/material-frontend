@@ -936,7 +936,7 @@ export interface paths {
                         "application/json": components["schemas"]["ErrorResponse"];
                     };
                 };
-                /** @description The tracking type differs, the name is taken, an existing variant is neither listed nor removed, a removed variant is still in use, or a stock differs from `expectedAvailableCount` or would drop below the pieces lent out. */
+                /** @description The tracking type differs, the name is taken, an existing variant is neither listed nor removed, a listed or removed variant no longer exists, a removed variant is still in use, or a stock differs from `expectedAvailableCount` or would drop below the pieces lent out. */
                 409: {
                     headers: {
                         [name: string]: unknown;
@@ -1054,7 +1054,7 @@ export interface paths {
                         "application/json": components["schemas"]["Material"];
                     };
                 };
-                /** @description Fewer than two or duplicate materials, an unknown material, different tracking types, a variant of another material in `variantNames`, or missing or duplicate variant names. */
+                /** @description Fewer than two or duplicate materials, different tracking types, a variant of another material in `variantNames`, or missing or duplicate variant names. */
                 400: {
                     headers: {
                         [name: string]: unknown;
@@ -1090,7 +1090,7 @@ export interface paths {
                         "application/json": components["schemas"]["ErrorResponse"];
                     };
                 };
-                /** @description The name is taken, or a kit uses a merged material with any variant in a way the merge would change (named in the message). */
+                /** @description A material or variant no longer exists (deleted or merged meanwhile), the name is taken, or a kit uses a merged material with any variant in a way the merge would change (named in the message). */
                 409: {
                     headers: {
                         [name: string]: unknown;
@@ -3893,7 +3893,7 @@ export interface components {
             name: string;
             category?: string | null;
             description?: string | null;
-            variants?: components["schemas"]["NewIndividualVariant"][];
+            variants: components["schemas"]["NewIndividualVariant"][];
             removedVariantIds?: string[];
         };
         /** NewMaterial */

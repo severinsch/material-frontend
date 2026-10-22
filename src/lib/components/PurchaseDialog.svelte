@@ -1,6 +1,6 @@
 <script lang="ts">
 	import { mutate, type BulkMaterial, type NewPurchase, type Purchase } from '#lib/api/index.js';
-	import { orNull, today, variantName } from '#lib/format.js';
+	import { orNull, today, variantName, variantOf } from '#lib/format.js';
 	import { getTenant } from '#lib/tenant.js';
 	import { Input } from '#lib/components/ui/input/index.js';
 	import Field from './Field.svelte';
@@ -15,16 +15,19 @@
 	let open = $state(false);
 	let id = $state<string | null>(null);
 	let form = $state(formOf());
+	/** Validation errors are only shown after the first attempt to save. */
+	let submitted = $state(false);
 
 	/** The purchased variant's name, e.g. "Seil 15 m", or just the material's name. */
-	const name = $derived(
-		variantName(material, material.variants.find((v) => v.id === form.variantId) ?? { name: null })
-	);
+	const name = $derived(variantName(material, variantOf(material, form.variantId)));
+	const variantMissing = $derived(!form.variantId);
 
 	function formOf(purchase?: Purchase) {
 		return {
-			// A purchase stays with its variant; new ones choose it if there are several.
-			variantId: purchase?.variantId ?? material.variants[0]?.id ?? '',
+			// A purchase stays with its variant, so with several variants it is chosen explicitly. A material with a
+			// single variant purchases that one.
+			variantId:
+				purchase?.variantId ?? (material.variants.length === 1 ? material.variants[0].id : ''),
 			quantity: purchase?.quantity ?? 1,
 			unitPrice: purchase?.unitPrice ?? null,
 			purchaseDate: purchase?.purchaseDate ?? today(),
@@ -36,10 +39,13 @@
 	export function show(purchase?: Purchase) {
 		id = purchase?.id ?? null;
 		form = formOf(purchase);
+		submitted = false;
 		open = true;
 	}
 
-	function save() {
+	async function save() {
+		submitted = true;
+		if (variantMissing) return false;
 		const body: NewPurchase = {
 			...form,
 			purchaseDate: orNull(form.purchaseDate),
@@ -58,7 +64,9 @@
 	submitLabel={id ? 'Speichern' : 'Erfassen'}
 	description={id
 		? 'Der Bestand wird um die Differenz der Mengen angepasst.'
-		: `Die Menge wird zum Bestand von ${name} addiert.`}
+		: form.variantId
+			? `Die Menge wird zum Bestand von ${name} addiert.`
+			: 'Die Menge wird zum Bestand der gewählten Variante addiert.'}
 	onsubmit={save}
 >
 	{#if !id && material.variants.length > 1}
@@ -67,7 +75,12 @@
 				id="purchase-variant"
 				bind:value={form.variantId}
 				options={material.variants.map((v) => ({ value: v.id, label: v.name ?? '' }))}
+				invalid={submitted && variantMissing}
+				describedby={submitted && variantMissing ? 'purchase-variant-error' : undefined}
 			/>
+			{#if submitted && variantMissing}
+				<p id="purchase-variant-error" class="text-sm text-destructive">Wähle eine Variante aus.</p>
+			{/if}
 		</Field>
 	{/if}
 	<div class="grid grid-cols-2 gap-4">

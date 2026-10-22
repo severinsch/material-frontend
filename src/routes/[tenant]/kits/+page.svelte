@@ -25,6 +25,7 @@
 		parseSelection,
 		placeOf,
 		serializeSelection,
+		variantsToFind,
 		type PackingLine
 	} from '#lib/kits/packing.js';
 	import { availableNow, settings } from '#lib/settings.svelte.js';
@@ -96,9 +97,6 @@
 			.map((need) => {
 				const material = materials.get(need.materialId);
 				const variantRank = material?.variants.findIndex((v) => v.id === need.variantId) ?? -1;
-				// Pieces that are all missing come from no variant; any of them may be used.
-				const from =
-					need.variantIds.length > 0 ? need.variantIds : (variantIds.get(need.materialId) ?? []);
 				return {
 					...need,
 					key: `${need.materialId}/${need.variantId ?? '*'}`,
@@ -106,7 +104,12 @@
 					materialName: material?.name ?? '',
 					rank: need.variantId ? variantRank : Infinity,
 					place: material
-						? placeOf(material, from, data.items, settings.subtractLoaned)
+						? placeOf(
+								material,
+								variantsToFind(need, variantIds),
+								data.items,
+								settings.subtractLoaned
+							)
 						: { location: NO_LOCATION, detail: '' }
 				};
 			})

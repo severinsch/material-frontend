@@ -4,12 +4,19 @@
 	import {
 		mutate,
 		type BulkVariant,
+		type IndividualItem,
 		type Material,
 		type NewMaterial,
 		type StorageLocation,
 		type Variant
 	} from '#lib/api/index.js';
-	import { locationOptions, optionsOf, orNull, trackingTypeLabels } from '#lib/format.js';
+	import {
+		locationOptions,
+		optionsOf,
+		orNull,
+		trackingTypeLabels,
+		variantsError as variantNamesError
+	} from '#lib/format.js';
 	import { getTenant } from '#lib/tenant.js';
 	import { Button } from '#lib/components/ui/button/index.js';
 	import { Input } from '#lib/components/ui/input/index.js';
@@ -20,7 +27,8 @@
 	import FormDialog from './FormDialog.svelte';
 	import SelectField from './SelectField.svelte';
 
-	let { locations }: { locations: StorageLocation[] } = $props();
+	/** [items] are the items of the edited material (or more), since variants with items can't be removed. */
+	let { locations, items }: { locations: StorageLocation[]; items: IndividualItem[] } = $props();
 
 	const tenant = getTenant();
 	const api = $derived(tenant.api);
@@ -42,14 +50,10 @@
 	/** Whether all variants share the dialog's location fields, which is the case for a single variant. */
 	const sharedLocation = $derived(!listed || !form.locationPerVariant);
 
-	const variantsError = $derived.by(() => {
-		if (form.variants.length < 2) return;
-		const names = form.variants.map((variant) => variant.name.trim());
-		if (names.some((name) => !name)) return 'Gib jeder Variante einen Namen.';
-		if (new Set(names).size < names.length) {
-			return 'Die Varianten eines Materials brauchen unterschiedliche Namen.';
-		}
-	});
+	const variantsError = $derived(variantNamesError(form.variants.map((variant) => variant.name)));
+	/** Variants with items, in any status, which the API refuses to remove. */
+	const variantsWithItems = $derived(new Set(items.map((item) => item.variantId)));
+	const hasItems = (variant: VariantForm) => !!variant.id && variantsWithItems.has(variant.id);
 
 	/** The form of [variant], or of a new one stored at [location]. */
 	function variantFormOf(
@@ -69,7 +73,7 @@
 			locationDetail: stock ? (stock.locationDetail ?? '') : location.locationDetail,
 			/** The stock when the dialog opened; the API rejects the update if a purchase changed it since. */
 			expectedAvailableCount: variant?.availableCount ?? null,
-			/** Pieces (bulk) or usable items (individual), to confirm removing a variant that has them. */
+			/** Pieces of a bulk variant, to confirm removing a variant that has them. */
 			pieces: (variant?.availableCount ?? 0) + (variant?.damagedCount ?? 0)
 		};
 	}
@@ -116,31 +120,33 @@
 		form.variants.push(variantFormOf(undefined, form));
 	}
 
-	/** Removes a variant, asking first if it has stock, e.g. "Variante 15 m mit 4 Stück entfernen?" */
+	/** The saved name of [variant], as the API names it in messages. */
+	function savedNameOf(variant: VariantForm) {
+		return variant.savedName ?? 'ohne Namen';
+	}
+
+	/**
+	 * Removes a variant, asking first if it has stock, e.g. "Variante 15 m mit 4 Stück entfernen?" Variants with items
+	 * can't be removed (see [hasItems]).
+	 */
 	function removeVariant(variant: VariantForm) {
 		const remove = () => {
 			form.variants.splice(form.variants.indexOf(variant), 1);
 			if (variant.id) form.removed.push(variant);
 		};
-		if (!variant.id || variant.pieces === 0) {
+		if (!variant.id || !bulk || variant.pieces === 0) {
 			remove();
 			return;
 		}
-		const name = variant.savedName ?? variant.name;
-		const pieces = bulk
-			? `${variant.pieces} Stück`
-			: `${variant.pieces} ${variant.pieces === 1 ? 'Gegenstand' : 'Gegenständen'}`;
 		confirmRemove.show(
-			`Variante ${name} mit ${pieces}`,
+			`Variante ${savedNameOf(variant)} mit ${variant.pieces} Stück`,
 			async () => {
 				remove();
 				return true;
 			},
 			{
 				verb: 'entfernen',
-				description: bulk
-					? 'Die Variante und ihr Bestand werden beim Speichern gelöscht.'
-					: 'Die Variante wird beim Speichern gelöscht. Das geht erst, wenn sie keine Gegenstände mehr hat.'
+				description: 'Die Variante und ihr Bestand werden beim Speichern gelöscht.'
 			}
 		);
 	}
@@ -305,6 +311,10 @@
 				Zum Beispiel die Längen eines Seils. Jede Variante braucht einen eigenen Namen, z. B. „15
 				m“.
 				{#if bulk && id}Erfasste Einkäufe erhöhen den Bestand automatisch.{/if}
+				{#if form.variants.some(hasItems)}
+					Varianten mit Gegenständen lassen sich erst entfernen, wenn ihre Gegenstände gelöscht oder
+					einer anderen Variante zugeordnet sind.
+				{/if}
 			</p>
 			{#if bulk}
 				<div
@@ -386,8 +396,10 @@
 						size="icon"
 						class={bulk ? 'hidden sm:inline-flex' : ''}
 						aria-label="{label} entfernen"
-						title="Entfernen"
-						disabled={form.variants.length === 1}
+						title={hasItems(variant)
+							? 'Hat noch Gegenstände – lösche sie zuerst oder ordne sie einer anderen Variante zu'
+							: 'Entfernen'}
+						disabled={form.variants.length === 1 || hasItems(variant)}
 						onclick={() => removeVariant(variant)}
 					>
 						<XIcon />
@@ -411,11 +423,11 @@
 				<p class="text-sm text-muted-foreground">
 					Wird beim Speichern entfernt:
 					{#each form.removed as variant, r (variant)}
-						{r > 0 ? ', ' : ''}{variant.savedName}
+						{r > 0 ? ', ' : ''}{savedNameOf(variant)}
 						<Button
 							variant="link"
 							class="h-auto p-0"
-							aria-label="Variante {variant.savedName} behalten"
+							aria-label="Variante {savedNameOf(variant)} behalten"
 							onclick={() => restoreVariant(variant)}>(behalten)</Button
 						>
 					{/each}

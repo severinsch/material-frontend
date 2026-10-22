@@ -1,8 +1,9 @@
 <script lang="ts">
 	import { mutate, type Kit, type Material } from '#lib/api/index.js';
-	import { variantName } from '#lib/format.js';
+	import { variantName, variantsError as variantNamesError } from '#lib/format.js';
 	import { kitsAfterMerge, suggestMerge } from '#lib/merge.js';
 	import { getTenant } from '#lib/tenant.js';
+	import * as Alert from '#lib/components/ui/alert/index.js';
 	import { Input } from '#lib/components/ui/input/index.js';
 	import { Label } from '#lib/components/ui/label/index.js';
 	import Field from './Field.svelte';
@@ -44,13 +45,7 @@
 		)
 	);
 
-	const variantsError = $derived.by(() => {
-		const names = rows.map((row) => variantNames[row.id]?.trim() ?? '');
-		if (names.some((name) => !name)) return 'Gib jeder Variante einen Namen.';
-		if (new Set(names).size < names.length) {
-			return 'Die Varianten eines Materials brauchen unterschiedliche Namen.';
-		}
-	});
+	const variantsError = $derived(variantNamesError(rows.map((row) => variantNames[row.id] ?? '')));
 
 	/** The variant names as the merged material will list them. */
 	const preview = $derived(
@@ -90,7 +85,7 @@
 
 	async function merge() {
 		submitted = true;
-		if (variantsError) return false;
+		if (variantsError || usedIn.blocked.length > 0) return false;
 		const merged = name.trim();
 		return mutate(
 			api.POST('/materials/merge', {
@@ -111,6 +106,7 @@
 	title="Materialien zusammenführen"
 	description="Die Materialien werden zu Varianten eines Materials, z. B. Seil mit 10 m, 15 m und 20 m. Bestand, Gegenstände, Einkäufe und Ausleihen bleiben bei ihrer Variante."
 	submitLabel="Zusammenführen"
+	submitDisabled={usedIn.blocked.length > 0}
 	class="sm:max-w-lg"
 	onsubmit={merge}
 >
@@ -191,4 +187,14 @@
 		{/if}
 		<p class="text-muted-foreground">Das Zusammenführen lässt sich nicht rückgängig machen.</p>
 	</div>
+	{#if usedIn.blocked.length > 0}
+		<Alert.Root variant="destructive">
+			<Alert.Title>Zusammenführen nicht möglich</Alert.Title>
+			<Alert.Description>
+				{#each usedIn.blocked as message (message)}
+					<p>{message}</p>
+				{/each}
+			</Alert.Description>
+		</Alert.Root>
+	{/if}
 </FormDialog>

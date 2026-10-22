@@ -4,7 +4,7 @@
 	import PlusIcon from '@lucide/svelte/icons/plus';
 	import Trash2Icon from '@lucide/svelte/icons/trash-2';
 	import { mutate, type BulkVariant, type DamageReport, type Purchase } from '#lib/api/index.js';
-	import { formatDate, formatPrice, itemName, trackingTypeLabels } from '#lib/format.js';
+	import { formatDate, formatPrice, itemName, trackingTypeLabels, variantOf } from '#lib/format.js';
 	import { isAvailableItem } from '#lib/loans.js';
 	import { availableNow, settings } from '#lib/settings.svelte.js';
 	import { getTenant } from '#lib/tenant.js';
@@ -78,13 +78,11 @@
 
 	const path = (id: string) => ({ params: { path: { id } } });
 
-	function variantOf(variantId: string) {
-		return material.variants.find((variant) => variant.id === variantId) ?? { name: null };
-	}
-
 	function reportName(report: DamageReport) {
 		const item = items.get(report.itemId);
-		return item ? itemName(material, variantOf(item.variantId), item) : `${material.name} ?`;
+		return item
+			? itemName(material, variantOf(material, item.variantId), item)
+			: `${material.name} ?`;
 	}
 
 	function removeMaterial() {
@@ -306,7 +304,7 @@
 								<Table.Cell>{formatDate(purchase.purchaseDate)}</Table.Cell>
 								{#if several}
 									<Table.Cell class="whitespace-normal"
-										>{variantOf(purchase.variantId).name}</Table.Cell
+										>{variantOf(material, purchase.variantId).name}</Table.Cell
 									>
 								{/if}
 								<Table.Cell class="text-right tabular-nums">{purchase.quantity}</Table.Cell>
@@ -350,7 +348,7 @@
 	{/if}
 </div>
 
-<MaterialDialog bind:this={materialDialog} locations={data.locations} />
+<MaterialDialog bind:this={materialDialog} locations={data.locations} items={data.items} />
 <DamageDialog bind:this={damageDialog} />
 {#if material.trackingType === 'BULK'}
 	<PurchaseDialog bind:this={purchaseDialog} {material} />

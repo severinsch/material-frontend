@@ -1015,6 +1015,98 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/tenants/{tenantId}/materials/merge": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Merge materials of the same type into the first one listed, whose variants they become. Its id, category
+         *     and description stay; it gets the new `name`, and every variant the name given in `variantNames` (by
+         *     variant id) or its current one. Items, stock, purchases, loans and kit options come along with their
+         *     variants, the other materials are deleted. Responds with the merged material.
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    /** @description The tenant id. */
+                    tenantId: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: {
+                content: {
+                    "application/json": components["schemas"]["MaterialMerge"];
+                };
+            };
+            responses: {
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Material"];
+                    };
+                };
+                /** @description Fewer than two or duplicate materials, an unknown material, different tracking types, a variant of another material in `variantNames`, or missing or duplicate variant names. */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description No valid session; log in again. */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Requires the permission EDIT in the tenant. */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description No tenant with this id, or the user has no access to it. */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description The name is taken, or a kit uses a merged material with any variant in a way the merge would change (named in the message). */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/tenants/{tenantId}/items": {
         parameters: {
             query?: never;
@@ -3806,6 +3898,14 @@ export interface components {
         };
         /** NewMaterial */
         NewMaterial: components["schemas"]["NewBulkMaterial"] | components["schemas"]["NewIndividualMaterial"];
+        /** MaterialMerge */
+        MaterialMerge: {
+            materialIds: string[];
+            name: string;
+            variantNames?: {
+                [key: string]: string;
+            };
+        };
         /** IndividualItem */
         IndividualItem: {
             /** Format: uuid */

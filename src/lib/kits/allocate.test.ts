@@ -1,15 +1,18 @@
 import { describe, expect, it } from 'vitest';
 import type { Kit, KitGroup } from '#lib/api/index.js';
-import { allocate, needsOf, type KitSelection } from './allocate.js';
+import { activePins, allocate, needsOf, type KitSelection } from './allocate.js';
 
 // Variant ids are the material id, followed by the variant's name for materials with several ("seil 20"). An option
 // "seil" accepts any variant of the material, "seil 20" only that one.
 
 const materialOf = (variantId: string) => variantId.split(' ')[0];
 
-/** A group with the given options; [amounts] are units, or label and units for several amounts. */
+/**
+ * A group with the given options, whose priority is their position unless given; [amounts] are units, or label and
+ * units for several amounts.
+ */
 function group(
-	options: [option: string, unitValue?: number][],
+	options: [option: string, unitValue?: number, priority?: number][],
 	...amounts: (number | [label: string, units: number])[]
 ): KitGroup {
 	return {
@@ -18,11 +21,11 @@ function group(
 				? { label: null, requiredUnits: amount }
 				: { label: amount[0], requiredUnits: amount[1] }
 		),
-		options: options.map(([option, unitValue = 1], priority) => ({
+		options: options.map(([option, unitValue = 1, priority], index) => ({
 			materialId: materialOf(option),
 			variantId: option.includes(' ') ? option : null,
 			unitValue,
-			priority
+			priority: priority ?? index
 		}))
 	};
 }
@@ -31,8 +34,13 @@ function kit(id: string, ...groups: KitGroup[]): Kit {
 	return { id, name: id, groups };
 }
 
-function select(kit: Kit, quantity = 1, choices: number[] = []): KitSelection {
-	return { kit, quantity, choices };
+function select(
+	kit: Kit,
+	quantity = 1,
+	choices: number[] = [],
+	pins: (string | null)[] = []
+): KitSelection {
+	return { kit, quantity, choices, pins };
 }
 
 /** The stock by variant id, and the variants of each material, which are the variants in [stock]. */
@@ -41,8 +49,8 @@ function stockOf(stock: Record<string, number>) {
 	return [new Map(Object.entries(stock)), variants] as const;
 }
 
-function run(selections: KitSelection[], stock: Record<string, number>) {
-	return allocate(selections, ...stockOf(stock));
+function run(selections: KitSelection[], stock: Record<string, number>, budget?: number) {
+	return allocate(selections, ...stockOf(stock), budget);
 }
 
 function needs(selections: KitSelection[], stock: Record<string, number>) {
@@ -269,5 +277,396 @@ describe('allocate with variants', () => {
 			'plane *': 3,
 			blatt: 1
 		});
+	});
+});
+
+describe('exact allocation', () => {
+	it('avoids a shortage that taking the preferred option first would cause', () => {
+		const jurte = kit('jurte', group([['plane'], ['halbdach', 3]], 6));
+		const kohte = kit('kohte', group([['plane'], ['blatt']], 6));
+		const stock = { plane: 6, halbdach: 2, blatt: 0 };
+		const lines = [select(jurte), select(kohte)];
+		expect(run(lines, stock)).toMatchObject({ shortages: [], approximate: false });
+		expect(required(lines, stock)).toEqual({ halbdach: 2, plane: 6 });
+	});
+
+	it('covers the case of FE-7 with the demo stock', () => {
+		// The Jurte's roof prefers Kohtenplanen; the Kohten take only the plain ones.
+		const jurte = kit('jurte', group([['plane std'], ['plane latz'], ['halbdach', 3]], 6));
+		const kohte = kit('kohte', group([['plane std']], 4));
+		const stock = { 'plane std': 8, 'plane latz': 4, halbdach: 2 };
+		const lines = [select(jurte), select(kohte, 2)];
+		expect(run(lines, stock).shortages).toEqual([]);
+		// 3 with Latz and a Halbdach fill the roof exactly.
+		expect(required(lines, stock)).toEqual({ 'plane latz': 3, halbdach: 1, 'plane std': 8 });
+	});
+
+	it('prefers fewer missing units over less waste', () => {
+		const a = kit('a', group([['halbdach', 3], ['blatt']], 2));
+		const b = kit('b', group([['blatt']], 2));
+		// 2 Blätter would fit a exactly, but b needs them; a Halbdach covers a with 1 unit to spare.
+		const lines = [select(a), select(b)];
+		expect(run(lines, { halbdach: 1, blatt: 2 }).shortages).toEqual([]);
+		expect(required(lines, { halbdach: 1, blatt: 2 })).toEqual({ halbdach: 1, blatt: 2 });
+	});
+
+	it('prefers less waste over preferred options', () => {
+		const roof = kit('roof', group([['halbdach', 3], ['blatt']], 4));
+		expect(required([select(roof)], { halbdach: 5, blatt: 5 })).toEqual({ halbdach: 1, blatt: 1 });
+	});
+
+	it('prefers preferred options over the line order', () => {
+		const a = kit('a', group([['x'], ['y']], 1));
+		const b = kit('b', group([['x'], ['z'], ['y']], 1));
+		// a could take x as the first line, but then b would need its third choice.
+		const { assignments } = run([select(a), select(b)], { x: 1, y: 1, z: 0 });
+		expect(assignments.map((a) => [a.line, a.variantId])).toEqual([
+			[0, 'y'],
+			[1, 'x']
+		]);
+	});
+
+	it('gives the preferred option to the earlier line on a tie', () => {
+		const roof = kit('roof', group([['halbdach', 3], ['blatt']], 3));
+		const { assignments } = run([select(roof), select(roof)], { halbdach: 1, blatt: 3 });
+		expect(assignments.map((a) => [a.line, a.variantId, a.pieces])).toEqual([
+			[0, 'halbdach', 1],
+			[1, 'blatt', 3]
+		]);
+	});
+
+	it('treats options with the same priority alike, taking the most stock first', () => {
+		const kohte = kit(
+			'kohte',
+			group(
+				[
+					['seil 20', 1, 0],
+					['seil 10', 1, 0]
+				],
+				3
+			)
+		);
+		expect(required([select(kohte)], { 'seil 10': 8, 'seil 20': 5 })).toEqual({ 'seil 10': 3 });
+		// Options of different materials alike come back as their own options.
+		const roof = kit(
+			'roof',
+			group(
+				[
+					['plane', 1, 0],
+					['blatt', 1, 0]
+				],
+				5
+			)
+		);
+		const { assignments } = run([select(roof)], { plane: 3, blatt: 3 });
+		expect(assignments.map((a) => [a.materialId, a.variantId, a.pieces])).toEqual([
+			['plane', 'plane', 3],
+			['blatt', 'blatt', 2]
+		]);
+	});
+
+	it('ignores stock that no group takes', () => {
+		const jurte = kit('jurte', group([['hering']], 10));
+		expect(run([select(jurte)], { hering: 10, spaten: 3 }).assignments).toHaveLength(1);
+	});
+
+	it('reports options without variants as missing', () => {
+		const jurte = kit('jurte', group([['geist']], 2));
+		expect(run([select(jurte)], {})).toEqual({
+			assignments: [
+				{
+					line: 0,
+					groupIndex: 0,
+					materialId: 'geist',
+					variantId: null,
+					anyVariant: false,
+					pieces: 2,
+					missing: true
+				}
+			],
+			shortages: [{ line: 0, groupIndex: 0, missingUnits: 2 }],
+			approximate: false
+		});
+	});
+
+	it('falls back to the greedy allocation past the budget', () => {
+		const jurte = kit('jurte', group([['plane'], ['halbdach', 3]], 6));
+		const kohte = kit('kohte', group([['plane'], ['blatt']], 6));
+		const result = run([select(jurte), select(kohte)], { plane: 6, halbdach: 2, blatt: 0 }, 0);
+		expect(result.approximate).toBe(true);
+		expect(result.shortages).toEqual([{ line: 1, groupIndex: 0, missingUnits: 6 }]);
+	});
+});
+
+describe('pins', () => {
+	const roof = group([['halbdach', 3], ['blatt']], 6);
+
+	it('uses only the pinned option', () => {
+		const jurte = kit('jurte', roof);
+		expect(required([select(jurte, 1, [], ['blatt'])], { halbdach: 2, blatt: 10 })).toEqual({
+			blatt: 6
+		});
+	});
+
+	it('reports a shortage on the pinned option', () => {
+		const jurte = kit('jurte', roof);
+		const lines = [select(jurte, 1, [], ['blatt'])];
+		expect(run(lines, { halbdach: 2, blatt: 4 }).shortages).toEqual([
+			{ line: 0, groupIndex: 0, missingUnits: 2 }
+		]);
+		expect(needs(lines, { halbdach: 2, blatt: 0 })).toMatchObject([
+			{ variantId: 'blatt', required: 6, missing: 6 }
+		]);
+	});
+
+	it('allocates other lines around a pin', () => {
+		const jurte = kit('jurte', roof);
+		const { assignments } = run([select(jurte), select(jurte, 1, [], ['halbdach'])], {
+			halbdach: 2,
+			blatt: 6
+		});
+		expect(assignments.map((a) => [a.line, a.variantId, a.pieces])).toEqual([
+			[0, 'blatt', 6],
+			[1, 'halbdach', 2]
+		]);
+	});
+
+	it('ignores unknown pins, pins of single options and of groups packed without', () => {
+		const jurte = kit(
+			'jurte',
+			roof,
+			group([['hering']], 10),
+			group([['doppel', 2], ['fenster']], ...optional(4))
+		);
+		const pins = ['geist', 'hering', 'fenster'];
+		expect(activePins(select(jurte, 1, [], pins))).toEqual([undefined, undefined, undefined]);
+		expect(activePins(select(jurte, 1, [0, 0, 1], pins))[2]).toMatchObject({
+			materialId: 'fenster'
+		});
+		expect(
+			required([select(jurte, 1, [], pins)], { halbdach: 2, blatt: 6, hering: 10, doppel: 2 })
+		).toEqual({ halbdach: 2, hering: 10 });
+	});
+});
+
+describe('allocation of the demo kits', () => {
+	// The demo kits and stock (October 2026), with "*" for any variant.
+	const seile = group(
+		[
+			['seil 20', 1, 0],
+			['seil 10', 1, 0],
+			['seil 15', 1, 0]
+		],
+		3
+	);
+	const fenster = (units: number) =>
+		group([['doppelfenster', 2], ['fenster']], ['ohne', 0], ['mit', units]);
+	const seitenwaende = (units: number) => group([['doppelplane', 2], ['viereck']], units);
+	const dach = group([['halbdach', 3], ['kohtenplane std'], ['kohtenplane latz']], 6);
+	const jurte = kit(
+		'jurte',
+		group([['hering']], 14),
+		group([['teleskop']], 12),
+		group([['seil']], 3),
+		group([['jurtenstange']], ['Dreibein', 3], ['Einbein', 1]),
+		fenster(12),
+		seitenwaende(12),
+		dach
+	);
+	const kohte = kit(
+		'kohte',
+		group([['kohtenplane std'], ['kohtenplane latz']], 4),
+		group([['kohtenstange']], 2),
+		group([['hering']], 10),
+		seile
+	);
+	const ovaljurte = kit(
+		'ovaljurte',
+		group([['teleskop']], 14),
+		dach,
+		group([['hering']], 16),
+		group([['theaterplane']], 2),
+		seile,
+		fenster(14),
+		seitenwaende(14),
+		group([['jurtenstange']], 2)
+	);
+	const superjurte = kit(
+		'superjurte',
+		seitenwaende(16),
+		group([['hering']], 18),
+		seile,
+		group([['jurtenstange']], 1),
+		group([['superdach']], 1),
+		group([['teleskop']], 16),
+		fenster(16)
+	);
+	const stock = {
+		hering: 76,
+		teleskop: 39,
+		jurtenstange: 12,
+		kohtenstange: 12,
+		'seil 10': 8,
+		'seil 15': 7,
+		'seil 20': 5,
+		'seil 30': 3,
+		'kohtenplane std': 8,
+		'kohtenplane latz': 4,
+		halbdach: 2,
+		doppelfenster: 18,
+		fenster: 12,
+		doppelplane: 20,
+		viereck: 12,
+		superdach: 2,
+		theaterplane: 4
+	};
+
+	it('searches a large camp exactly and quickly', () => {
+		const lines = [
+			select(jurte, 3, [0, 0, 0, 0, 1]),
+			select(jurte, 1, [0, 0, 0, 1]),
+			select(kohte, 4),
+			select(ovaljurte, 1, [0, 0, 0, 0, 0, 1]),
+			select(superjurte, 1, [0, 0, 0, 0, 0, 0, 1]),
+			select(kohte, 1),
+			select(jurte, 1, [0, 0, 0, 1, 1], [null, null, null, null, null, null, 'kohtenplane std']),
+			select(ovaljurte, 2)
+		];
+		const start = performance.now();
+		const result = run(lines, stock);
+		const elapsed = performance.now() - start;
+		expect(result.approximate).toBe(false);
+		expect(elapsed).toBeLessThan(500);
+	});
+});
+
+describe('allocate against a brute-force search', () => {
+	/** A deterministic pseudo-random generator (mulberry32). */
+	function random(seed: number) {
+		return () => {
+			seed = (seed + 0x6d2b79f5) | 0;
+			let t = Math.imul(seed ^ (seed >>> 15), 1 | seed);
+			t = (t + Math.imul(t ^ (t >>> 7), 61 | t)) ^ t;
+			return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+		};
+	}
+
+	interface Use {
+		variantId: string;
+		unitValue: number;
+		rank: number;
+	}
+
+	/** The cost of the best allocation: missing units, waste, units at rank 1 or worse, 2 or worse. */
+	function bruteForce(demands: { units: number; uses: Use[] }[], stock: Record<string, number>) {
+		let best: number[] | undefined;
+		const left = { ...stock };
+		const cost = [0, 0, 0, 0];
+		const visit = (d: number, u: number, covered: number) => {
+			if (d === demands.length) {
+				if (!best || isLess(cost, best)) best = [...cost];
+				return;
+			}
+			const { units, uses } = demands[d];
+			if (u === uses.length) {
+				const [missing, waste] = [Math.max(0, units - covered), Math.max(0, covered - units)];
+				cost[0] += missing;
+				cost[1] += waste;
+				visit(d + 1, 0, 0);
+				cost[0] -= missing;
+				cost[1] -= waste;
+				return;
+			}
+			const { variantId, unitValue, rank } = uses[u];
+			for (let p = 0; p <= Math.min(left[variantId], Math.ceil(units / unitValue)); p++) {
+				left[variantId] -= p;
+				for (let r = 1; r <= rank; r++) cost[1 + r] += p * unitValue;
+				visit(d, u + 1, covered + p * unitValue);
+				for (let r = 1; r <= rank; r++) cost[1 + r] -= p * unitValue;
+				left[variantId] += p;
+			}
+		};
+		visit(0, 0, 0);
+		return best;
+	}
+
+	function isLess(a: number[], b: number[]) {
+		const i = a.findIndex((value, index) => value !== b[index]);
+		return i >= 0 && a[i] < b[i];
+	}
+
+	it('finds an allocation as good as the best one', () => {
+		const next = random(7);
+		const int = (max: number) => Math.floor(next() * (max + 1));
+		// Single-variant materials and one material with two variants.
+		const pool = ['a', 'b', 'c', 's', 's x', 's y'];
+		for (let round = 0; round < 300; round++) {
+			const stock: Record<string, number> = {};
+			for (const variant of ['a', 'b', 'c', 's x', 's y']) stock[variant] = int(3);
+			const kits = Array.from({ length: 1 + int(1) }, (_, k) =>
+				kit(
+					`k${k}`,
+					...Array.from({ length: 1 + int(1) }, () => {
+						const options = pool
+							.toSorted(() => next() - 0.5)
+							// The material "s" appears either once for any variant or with its variants.
+							.filter((option, i, all) =>
+								option === 's' ? !all.some((o) => o.startsWith('s ')) : true
+							)
+							.slice(0, 1 + int(1));
+						return group(
+							options.map((option) => [option, 1 + int(2), int(1)]),
+							1 + int(4)
+						);
+					})
+				)
+			);
+			const lines = kits.map((k) => select(k, 1 + int(1)));
+			const [stockMap, variants] = stockOf(stock);
+			const result = allocate(lines, stockMap, variants);
+
+			// The demands with their variants, unit values and dense ranks, as the brute force sees them.
+			const demands = lines.flatMap(({ kit, quantity }) =>
+				kit.groups.map((g) => {
+					const priorities = [...new Set(g.options.map((o) => o.priority))].sort((x, y) => x - y);
+					return {
+						units: g.amounts[0].requiredUnits * quantity,
+						uses: g.options.flatMap((o) =>
+							(o.variantId ? [o.variantId] : (variants.get(o.materialId) ?? [])).map(
+								(variantId) => ({
+									variantId,
+									unitValue: o.unitValue,
+									rank: priorities.indexOf(o.priority)
+								})
+							)
+						)
+					};
+				})
+			);
+			const cost = [0, 0, 0, 0];
+			let index = 0;
+			lines.forEach(({ kit }, line) =>
+				kit.groups.forEach((_, groupIndex) => {
+					const { units, uses } = demands[index++];
+					let covered = 0;
+					for (const a of result.assignments) {
+						if (a.line !== line || a.groupIndex !== groupIndex || a.missing) continue;
+						const use = uses.find((u) => u.variantId === a.variantId)!;
+						covered += a.pieces * use.unitValue;
+						for (let r = 1; r <= use.rank; r++) cost[1 + r] += a.pieces * use.unitValue;
+					}
+					cost[0] += Math.max(0, units - covered);
+					cost[1] += Math.max(0, covered - units);
+				})
+			);
+			// Stock is never overused.
+			for (const [variantId, pieces] of Object.entries(stock)) {
+				const used = result.assignments
+					.filter((a) => a.variantId === variantId && !a.missing)
+					.reduce((sum, a) => sum + a.pieces, 0);
+				expect(used).toBeLessThanOrEqual(pieces);
+			}
+			expect(cost, JSON.stringify({ stock, lines })).toEqual(bruteForce(demands, stock));
+		}
 	});
 });

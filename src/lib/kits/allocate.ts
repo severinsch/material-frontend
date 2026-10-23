@@ -1,4 +1,4 @@
-import type { Kit, KitGroupOption } from '#lib/api/index.js';
+import type { Kit, KitGroup, KitGroupOption } from '#lib/api/index.js';
 
 /** A line of the packing list: a kit, how many of it, and the amount chosen per group. */
 export interface KitSelection {
@@ -6,6 +6,11 @@ export interface KitSelection {
 	quantity: number;
 	/** Index into the group's `amounts` per group index; missing entries mean the default, 0. */
 	choices: readonly number[];
+	/**
+	 * The option a group is pinned to, by its [optionId], per group index; null or missing entries mean automatic.
+	 * Only active pins count, see [activePins].
+	 */
+	pins?: readonly (string | null | undefined)[];
 }
 
 /** Pieces of a variant packed for a group of a line. */
@@ -38,6 +43,11 @@ export interface GroupShortage {
 export interface Allocation {
 	assignments: Assignment[];
 	shortages: GroupShortage[];
+	/**
+	 * Whether the selection was too large to search exactly and part of it was allocated greedily, so some shortages
+	 * might be avoidable.
+	 */
+	approximate: boolean;
 }
 
 /**
@@ -69,6 +79,34 @@ export function unitsOf(selection: Omit<KitSelection, 'quantity'>, groupIndex: n
 	return (amounts[selection.choices[groupIndex] ?? 0] ?? amounts[0])?.requiredUnits ?? 0;
 }
 
+/**
+ * The id pins use for [option]: its variant id, or its material id for an option that accepts any variant. Unique
+ * within a group, and unlike the option's position it survives options being added or reprioritized.
+ */
+export function optionId(option: Pick<KitGroupOption, 'materialId' | 'variantId'>): string {
+	return option.variantId ?? option.materialId;
+}
+
+/** The options of [group] in priority order; options with the same priority keep the API's order. */
+export function sortedOptions(group: KitGroup): KitGroupOption[] {
+	return group.options.toSorted((a, b) => a.priority - b.priority);
+}
+
+/**
+ * The option each group of [selection] is pinned to, or undefined for automatic. A pin counts only if it names one of
+ * the group's several options and the chosen amount isn't 0; others are kept on the line (choosing "mit" again
+ * restores a pin of the windows) but ignored.
+ */
+export function activePins(
+	selection: Omit<KitSelection, 'quantity'>
+): (KitGroupOption | undefined)[] {
+	return selection.kit.groups.map((group, groupIndex) => {
+		const pin = selection.pins?.[groupIndex];
+		if (!pin || group.options.length < 2 || unitsOf(selection, groupIndex) <= 0) return undefined;
+		return group.options.find((option) => optionId(option) === pin);
+	});
+}
+
 /** The variants an option accepts: its variant, or all variants of its material. */
 function candidatesOf(
 	option: Pick<KitGroupOption, 'materialId' | 'variantId'>,
@@ -77,19 +115,53 @@ function candidatesOf(
 	return option.variantId ? [option.variantId] : (variants.get(option.materialId) ?? []);
 }
 
+interface Option extends KitGroupOption {
+	candidates: readonly string[];
+	/** Dense rank of the option's priority within its group, 0 for the most preferred. */
+	rank: number;
+}
+
+/** The units a group of a line needs, and the options it may use: all of them, or the pinned one. */
+interface Demand {
+	line: number;
+	groupIndex: number;
+	units: number;
+	/** In priority order. */
+	options: Option[];
+}
+
+/** Variants that every demand treats alike (same unit value and rank, or not at all), pooled with their stock. */
+interface VariantClass {
+	variantIds: string[];
+	stock: number;
+	/** Per accepting demand (by index), the unit value and rank of the option that accepts the variants. */
+	uses: { demand: number; unitValue: number; rank: number }[];
+}
+
+/** Upper bound for the fills the exact search evaluates, which keeps the page responsive for huge selections. */
+export const SEARCH_BUDGET = 300_000;
+
 /**
  * Distributes the available stock over the groups of the selected lines.
  *
- * Every group of a line needs the units of its chosen amount times the line's quantity; groups with 0 units are
- * skipped. An option for any variant of a material stands for all its variants with the same unit value and
- * priority, taking the variant with the most stock left first. Groups whose options cover fewer variants are served
- * first, since they have fewer alternatives (a group that needs "Seil 20 m" comes before one that takes any rope).
- * Every group then takes its options in priority order (lowest first): first only whole pieces that fit into the
- * remaining units, then rounding up to cover the rest, so a large piece isn't used where smaller ones fit exactly. If
- * the stock runs out, the missing pieces are assigned to the group's preferred option (marked as missing), so the
- * shortage shows up there, and the missing units are reported per group so they can be filled with any of its
- * options. This is a greedy approach: it doesn't search for the best possible combination, which is fine for the
- * small number of interchangeable materials in practice.
+ * Every group of a line needs the units of its chosen amount times the line's quantity (groups with 0 units are
+ * skipped), filled by its options, or only by the pinned one. An option for any variant of a material stands for all
+ * its variants. Of all ways to distribute the stock, the allocation takes the best by, in this order:
+ * 1. the fewest missing units, summed over the groups (where a material counts differently in two groups, a piece
+ *    goes where it counts more);
+ * 2. the least waste, units packed beyond what a group needs, so a large piece isn't used where smaller ones fit;
+ * 3. the fewest units (pieces × unit value) from options other than a group's most preferred ones, then from
+ *    options below its two most preferred priorities, and so on; options with the same priority count the same;
+ * 4. earlier lines first, then the kit's group order.
+ * Among variants a group treats alike, the one with the most stock left is taken first. A shortage is thus only
+ * reported if no distribution covers everything; the missing pieces are assigned to the group's preferred (or
+ * pinned) option, so the shortage shows up there, and the missing units are reported per group. Since the result
+ * depends on the whole selection, adding a kit can change what an earlier one gets.
+ *
+ * The search is exact: variants treated alike by every group are pooled into classes, groups that share no class
+ * are searched separately, and a depth-first search over the groups is memoized on the stock left. If a selection
+ * needs more than [budget] steps, the rest is allocated greedily (each group in priority order) and the result is
+ * marked approximate.
  *
  * @param stock usable pieces per variant id
  * @param variants the variant ids of each material, by material id
@@ -97,66 +169,337 @@ function candidatesOf(
 export function allocate(
 	selections: KitSelection[],
 	stock: ReadonlyMap<string, number>,
-	variants: ReadonlyMap<string, readonly string[]>
+	variants: ReadonlyMap<string, readonly string[]>,
+	budget = SEARCH_BUDGET
 ): Allocation {
-	const demands = selections.flatMap((selection, line) =>
-		selection.kit.groups.flatMap((group, groupIndex) => {
+	const demands = demandsOf(selections, variants);
+	const classes = classesOf(demands, stock);
+	const assigned: Assignment[][] = demands.map(() => []);
+	const shortages: (GroupShortage | undefined)[] = [];
+	const left = new Map(stock);
+	const steps = { left: budget };
+	let approximate = false;
+
+	for (const component of componentsOf(demands, classes)) {
+		const result = search(component, demands, classes, steps);
+		if (!result) {
+			approximate = true;
+			greedy(component.demands, demands, left, assigned, shortages);
+			continue;
+		}
+		component.demands.forEach((d, k) => {
+			const demand = demands[d];
+			for (const [c, pieces] of result.pieces[k]) {
+				takeFromClass(demand, d, classes[component.classes[c]], pieces, left, assigned);
+			}
+			if (result.missing[k] > 0) addMissing(demand, d, result.missing[k], assigned, shortages);
+		});
+	}
+	return {
+		assignments: assigned.flat(),
+		shortages: shortages.filter((shortage) => shortage !== undefined),
+		approximate
+	};
+}
+
+function demandsOf(
+	selections: KitSelection[],
+	variants: ReadonlyMap<string, readonly string[]>
+): Demand[] {
+	return selections.flatMap((selection, line) => {
+		const pins = activePins(selection);
+		return selection.kit.groups.flatMap((group, groupIndex) => {
 			const units = unitsOf(selection, groupIndex) * selection.quantity;
 			if (units <= 0) return [];
-			const options = group.options
-				.toSorted((a, b) => a.priority - b.priority)
-				.map((option) => ({ ...option, candidates: candidatesOf(option, variants) }));
-			const covered = new Set(options.flatMap((option) => option.candidates)).size;
-			return [{ line, groupIndex, units, options, covered }];
-		})
-	);
-	demands.sort((a, b) => a.covered - b.covered);
+			const pinned = pins[groupIndex];
+			const sorted = pinned ? [pinned] : sortedOptions(group);
+			const priorities = [...new Set(sorted.map((option) => option.priority))];
+			const options = sorted.map((option) => ({
+				...option,
+				candidates: candidatesOf(option, variants),
+				rank: priorities.indexOf(option.priority)
+			}));
+			return [{ line, groupIndex, units, options }];
+		});
+	});
+}
 
-	const left = new Map(stock);
+/** Pools the variants [demands] accept into classes, by how every demand treats them. */
+function classesOf(demands: Demand[], stock: ReadonlyMap<string, number>): VariantClass[] {
+	const usesOf = new Map<string, VariantClass['uses']>();
+	demands.forEach(({ options }, demand) => {
+		for (const { candidates, unitValue, rank } of options) {
+			for (const variantId of candidates) {
+				let uses = usesOf.get(variantId);
+				if (!uses) usesOf.set(variantId, (uses = []));
+				// Only the first option of a group that accepts a variant counts (kits allow just one).
+				if (uses.at(-1)?.demand !== demand) uses.push({ demand, unitValue, rank });
+			}
+		}
+	});
+	const classes = new Map<string, VariantClass>();
+	for (const [variantId, uses] of usesOf) {
+		const signature = uses.map((use) => `${use.demand}:${use.unitValue}:${use.rank}`).join(',');
+		let variantClass = classes.get(signature);
+		if (!variantClass) classes.set(signature, (variantClass = { variantIds: [], stock: 0, uses }));
+		variantClass.variantIds.push(variantId);
+		variantClass.stock += stock.get(variantId) ?? 0;
+	}
+	return [...classes.values()];
+}
+
+/** Demands that share stock, with their classes, by index; in the order of their first demand. */
+interface Component {
+	demands: number[];
+	classes: number[];
+}
+
+function componentsOf(demands: Demand[], classes: VariantClass[]): Component[] {
+	const parent = demands.map((_, d) => d);
+	const root = (d: number): number => (parent[d] === d ? d : (parent[d] = root(parent[d])));
+	for (const { uses } of classes) {
+		for (const use of uses.slice(1)) parent[root(use.demand)] = root(uses[0].demand);
+	}
+	const components = new Map<number, Component>();
+	demands.forEach((_, d) => {
+		const r = root(d);
+		let component = components.get(r);
+		if (!component) components.set(r, (component = { demands: [], classes: [] }));
+		component.demands.push(d);
+	});
+	classes.forEach(({ uses }, c) => {
+		if (uses.length > 0) components.get(root(uses[0].demand))?.classes.push(c);
+	});
+	return [...components.values()];
+}
+
+/** Pieces per class (by the component's class index) and missing units, per demand of the component. */
+interface SearchResult {
+	pieces: [classIndex: number, pieces: number][][];
+	missing: number[];
+}
+
+interface Fill {
+	/** Missing units, waste, then the units at rank 1 or worse, rank 2 or worse, and so on. */
+	cost: number[];
+	pieces: number[];
+	missing: number;
+}
+
+/** Thrown when the search runs out of steps. */
+const outOfSteps = Symbol('out of steps');
+
+/**
+ * Searches the best fills for the demands of [component] (see [allocate]), or undefined if it takes more than the
+ * steps left.
+ */
+function search(
+	component: Component,
+	demands: Demand[],
+	classes: VariantClass[],
+	steps: { left: number }
+): SearchResult | undefined {
+	const n = component.demands.length;
+	// The classes each demand can use, in the order fills try them: preferred, larger pieces, more stock.
+	const uses = component.demands.map((d) =>
+		component.classes
+			.flatMap((c, local) => {
+				const use = classes[c].uses.find((u) => u.demand === d);
+				return use
+					? [{ local, unitValue: use.unitValue, rank: use.rank, stock: classes[c].stock }]
+					: [];
+			})
+			.sort((a, b) => a.rank - b.rank || b.unitValue - a.unitValue || b.stock - a.stock)
+	);
+	const units = component.demands.map((d) => demands[d].units);
+	const width = 2 + Math.max(0, ...uses.flat().map((use) => use.rank));
+
+	// Stock beyond what the remaining demands could take makes no difference, so the memo key caps it.
+	const caps = Array.from({ length: n + 1 }, () => component.classes.map(() => 0));
+	for (let k = n - 1; k >= 0; k--) {
+		caps[k] = [...caps[k + 1]];
+		for (const use of uses[k]) caps[k][use.local] += Math.ceil(units[k] / use.unitValue);
+	}
+	const radices = caps.map((cap) => {
+		let product = 1;
+		const radix = cap.map((max) => {
+			const value = product;
+			product *= max + 1;
+			return value;
+		});
+		return product <= Number.MAX_SAFE_INTEGER ? radix : undefined;
+	});
+	const keyOf = (k: number, left: number[]): number | string => {
+		const radix = radices[k];
+		if (!radix) return left.map((value, c) => Math.min(value, caps[k][c])).join(',');
+		return left.reduce((key, value, c) => key + Math.min(value, caps[k][c]) * radix[c], 0);
+	};
+
+	const memo = Array.from({ length: n }, () => new Map<number | string, Fill>());
+	const none: Fill = { cost: new Array<number>(width).fill(0), pieces: [], missing: 0 };
+
+	/** The best fill of demand [k] given the stock [left] per class (restored before returning). */
+	const best = (k: number, left: number[]): Fill => {
+		if (k === n) return none;
+		const key = keyOf(k, left);
+		const cached = memo[k].get(key);
+		if (cached) return cached;
+		const options = uses[k];
+		const pieces = options.map(() => 0);
+		const own = new Array<number>(width);
+		let found: Fill | undefined;
+		const visit = (i: number, remaining: number) => {
+			if (i === options.length || remaining <= 0) {
+				if (--steps.left < 0) throw outOfSteps;
+				const rest = best(k + 1, left).cost;
+				own.fill(0);
+				own[0] = Math.max(0, remaining);
+				own[1] = Math.max(0, -remaining);
+				options.forEach(({ rank, unitValue }, j) => {
+					for (let r = 1; r <= rank; r++) own[1 + r] += pieces[j] * unitValue;
+				});
+				if (!found || isLessSum(own, rest, found.cost)) {
+					const cost = own.map((value, index) => value + rest[index]);
+					found = { cost, pieces: [...pieces], missing: own[0] };
+				}
+				return;
+			}
+			const { local, unitValue } = options[i];
+			// More than this would leave a piece that isn't needed to cover the group.
+			for (let p = Math.min(left[local], Math.ceil(remaining / unitValue)); p >= 0; p--) {
+				pieces[i] = p;
+				left[local] -= p;
+				visit(i + 1, remaining - p * unitValue);
+				left[local] += p;
+			}
+			pieces[i] = 0;
+		};
+		visit(0, units[k]);
+		memo[k].set(key, found!);
+		return found!;
+	};
+
+	try {
+		const left = component.classes.map((c) => classes[c].stock);
+		const result: SearchResult = { pieces: [], missing: [] };
+		for (let k = 0; k < n; k++) {
+			const { pieces, missing } = best(k, left);
+			result.pieces.push(
+				uses[k].flatMap(({ local }, j) => {
+					left[local] -= pieces[j];
+					return pieces[j] > 0 ? [[local, pieces[j]] as [number, number]] : [];
+				})
+			);
+			result.missing.push(missing);
+		}
+		return result;
+	} catch (error) {
+		if (error === outOfSteps) return undefined;
+		throw error;
+	}
+}
+
+/** Whether [a] + [b] is lexicographically less than [than]. */
+function isLessSum(a: number[], b: number[], than: number[]): boolean {
+	for (let i = 0; i < than.length; i++) {
+		const sum = a[i] + b[i];
+		if (sum !== than[i]) return sum < than[i];
+	}
+	return false;
+}
+
+/**
+ * Takes [pieces] of [variantClass] for [demand], from the variants with the most stock left first, each through the
+ * demand's option that accepts it.
+ */
+function takeFromClass(
+	demand: Demand,
+	d: number,
+	variantClass: VariantClass,
+	pieces: number,
+	left: Map<string, number>,
+	assigned: Assignment[][]
+) {
 	const leftOf = (variantId: string) => left.get(variantId) ?? 0;
-	const assignments: Assignment[] = [];
-	const shortages: GroupShortage[] = [];
-	for (const { line, groupIndex, units, options } of demands) {
-		let remaining = units;
+	let remaining = pieces;
+	for (const variantId of variantClass.variantIds.toSorted((a, b) => leftOf(b) - leftOf(a))) {
+		if (remaining <= 0) break;
+		const taken = Math.min(remaining, leftOf(variantId));
+		if (taken <= 0) continue;
+		left.set(variantId, leftOf(variantId) - taken);
+		remaining -= taken;
+		const option = demand.options.find((o) => o.candidates.includes(variantId))!;
+		assigned[d].push(assignment(demand, option, variantId, taken, false));
+	}
+}
+
+function assignment(
+	{ line, groupIndex }: Demand,
+	option: Option,
+	variantId: string | null,
+	pieces: number,
+	missing: boolean
+): Assignment {
+	const anyVariant = !option.variantId && option.candidates.length > 1;
+	return {
+		line,
+		groupIndex,
+		materialId: option.materialId,
+		variantId,
+		anyVariant,
+		pieces,
+		missing
+	};
+}
+
+/** Assigns [units] the stock can't fill to the preferred option of [demand], as missing pieces. */
+function addMissing(
+	demand: Demand,
+	d: number,
+	units: number,
+	assigned: Assignment[][],
+	shortages: (GroupShortage | undefined)[]
+) {
+	const [preferred] = demand.options;
+	const [only] = preferred.candidates.length === 1 ? preferred.candidates : [];
+	const pieces = Math.ceil(units / preferred.unitValue);
+	assigned[d].push(assignment(demand, preferred, only ?? null, pieces, true));
+	shortages[d] = { line: demand.line, groupIndex: demand.groupIndex, missingUnits: units };
+}
+
+/**
+ * The fallback for selections too large to search: groups whose options cover fewer variants first, each taking its
+ * options in priority order, first only whole pieces that fit into the remaining units, then rounding up to cover the
+ * rest. Within an option, the variant with the most stock left comes first.
+ */
+function greedy(
+	indices: number[],
+	demands: Demand[],
+	left: Map<string, number>,
+	assigned: Assignment[][],
+	shortages: (GroupShortage | undefined)[]
+) {
+	const leftOf = (variantId: string) => left.get(variantId) ?? 0;
+	const covered = (d: number) =>
+		new Set(demands[d].options.flatMap((option) => option.candidates)).size;
+	for (const d of indices.toSorted((a, b) => covered(a) - covered(b))) {
+		const demand = demands[d];
+		let remaining = demand.units;
 		for (const round of [Math.floor, Math.ceil]) {
-			for (const option of options) {
-				const anyVariant = !option.variantId && option.candidates.length > 1;
+			for (const option of demand.options) {
 				// Sorted when the option's turn comes, by what earlier groups and options left.
 				for (const variantId of option.candidates.toSorted((a, b) => leftOf(b) - leftOf(a))) {
 					if (remaining <= 0) break;
 					const pieces = Math.min(round(remaining / option.unitValue), leftOf(variantId));
 					if (pieces <= 0) continue;
 					left.set(variantId, leftOf(variantId) - pieces);
-					const { materialId } = option;
-					assignments.push({
-						line,
-						groupIndex,
-						materialId,
-						variantId,
-						anyVariant,
-						pieces,
-						missing: false
-					});
+					assigned[d].push(assignment(demand, option, variantId, pieces, false));
 					remaining -= pieces * option.unitValue;
 				}
 			}
 		}
-		if (remaining > 0) {
-			const [preferred] = options;
-			const [only] = preferred.candidates.length === 1 ? preferred.candidates : [];
-			assignments.push({
-				line,
-				groupIndex,
-				materialId: preferred.materialId,
-				variantId: only ?? null,
-				anyVariant: !preferred.variantId && preferred.candidates.length > 1,
-				pieces: Math.ceil(remaining / preferred.unitValue),
-				missing: true
-			});
-			shortages.push({ line, groupIndex, missingUnits: remaining });
-		}
+		if (remaining > 0) addMissing(demand, d, remaining, assigned, shortages);
 	}
-	return { assignments, shortages };
 }
 
 /**

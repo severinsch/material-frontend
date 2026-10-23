@@ -50,6 +50,11 @@
 	const bulk = $derived(form.trackingType === 'BULK');
 	/** Whether all variants share the dialog's location fields, which is the case for a single variant. */
 	const sharedLocation = $derived(!listed || !form.locationPerVariant);
+	/**
+	 * Variants with their own location have too many fields for a row, so each one is a card with labelled fields, as
+	 * on phones; otherwise they are rows under a header from sm on.
+	 */
+	const cards = $derived(bulk && !sharedLocation);
 
 	const variantsError = $derived(variantNamesError(form.variants.map((variant) => variant.name)));
 	/** Variants with items, in any status, which the API refuses to remove. */
@@ -317,10 +322,15 @@
 			{/if}
 			{@render locationFields(form, '')}
 		{/if}
-		<p class="text-sm text-muted-foreground">
-			Gibt es das Material in mehreren Längen, Größen oder Ausführungen?
-			<Button variant="link" class="h-auto p-0" onclick={startVariants}>Varianten anlegen</Button>
-		</p>
+		<div class="grid justify-items-start gap-2">
+			<p class="text-sm text-muted-foreground">
+				Gibt es das Material in mehreren Längen, Größen oder Ausführungen, z. B. ein Seil mit 10 m
+				und 15 m? Dann lege Varianten an.
+			</p>
+			<Button variant="outline" size="sm" onclick={startVariants}>
+				<PlusIcon />Variante hinzufügen
+			</Button>
+		</div>
 	{:else}
 		<fieldset class="grid gap-3" aria-describedby="material-variants-hint">
 			<legend class="mb-1 text-sm font-medium">Varianten</legend>
@@ -333,7 +343,7 @@
 					einer anderen Variante zugeordnet sind.
 				{/if}
 			</p>
-			{#if bulk}
+			{#if bulk && !cards}
 				<div
 					class="hidden gap-2 text-xs font-medium text-muted-foreground sm:grid sm:grid-cols-[1fr_5rem_5rem_2rem]"
 					aria-hidden="true"
@@ -343,15 +353,18 @@
 			{/if}
 			{#each form.variants as variant, v (variant)}
 				{@const label = variant.name.trim() || `Variante ${v + 1}`}
-				<!-- A card on phones, a row from sm on. -->
+				<!-- A card on phones (and with a location per variant), a row from sm on. -->
 				<div
 					class={[
-						'grid gap-2 rounded-md border p-3 sm:items-end sm:rounded-none sm:border-0 sm:p-0',
-						bulk ? 'grid-cols-2 sm:grid-cols-[1fr_5rem_5rem_2rem]' : 'grid-cols-[1fr_2rem]'
+						'grid gap-2 rounded-md border p-3',
+						!cards && 'sm:items-end sm:rounded-none sm:border-0 sm:p-0',
+						bulk
+							? ['grid-cols-2', !cards && 'sm:grid-cols-[1fr_5rem_5rem_2rem]']
+							: 'grid-cols-[1fr_2rem]'
 					]}
 				>
-					<div class={['grid gap-1', bulk && 'col-span-2 sm:col-span-1']}>
-						<Label for="variant-{v}-name" class="text-xs sm:sr-only"
+					<div class={['grid gap-1', bulk && ['col-span-2', !cards && 'sm:col-span-1']]}>
+						<Label for="variant-{v}-name" class={[!cards && 'sm:sr-only']}
 							>Name von Variante {v + 1}</Label
 						>
 						<div class="flex gap-2">
@@ -367,11 +380,11 @@
 									: undefined}
 							/>
 							{#if bulk}
-								<!-- On phones, the remove button sits next to the name. -->
+								<!-- In cards, the remove button sits next to the name. -->
 								<Button
 									variant="ghost"
 									size="icon"
-									class="sm:hidden"
+									class={[!cards && 'sm:hidden']}
 									aria-label="{label} entfernen"
 									title="Entfernen"
 									disabled={form.variants.length === 1}
@@ -384,8 +397,8 @@
 					</div>
 					{#if bulk}
 						<div class="grid gap-1">
-							<Label for="variant-{v}-available" class="text-xs sm:sr-only"
-								>Bestand von {label}</Label
+							<Label for="variant-{v}-available" class={[!cards && 'sm:sr-only']}
+								>Bestand <span class="sr-only">von {label}</span></Label
 							>
 							<Input
 								id="variant-{v}-available"
@@ -396,8 +409,8 @@
 							/>
 						</div>
 						<div class="grid gap-1">
-							<Label for="variant-{v}-damaged" class="text-xs sm:sr-only"
-								>Beschädigt von {label}</Label
+							<Label for="variant-{v}-damaged" class={[!cards && 'sm:sr-only']}
+								>Beschädigt <span class="sr-only">von {label}</span></Label
 							>
 							<Input
 								id="variant-{v}-damaged"
@@ -411,7 +424,7 @@
 					<Button
 						variant="ghost"
 						size="icon"
-						class={bulk ? 'hidden sm:inline-flex' : ''}
+						class={[bulk && ['hidden', !cards && 'sm:inline-flex']]}
 						aria-label="{label} entfernen"
 						title={hasItems(variant)
 							? 'Hat noch Gegenstände – lösche sie zuerst oder ordne sie einer anderen Variante zu'
@@ -421,8 +434,8 @@
 					>
 						<XIcon />
 					</Button>
-					{#if bulk && !sharedLocation}
-						<div class="col-span-2 grid grid-cols-2 gap-2 sm:col-span-4">
+					{#if cards}
+						<div class="col-span-2 grid grid-cols-2 gap-2">
 							{@render locationFields(variant, `-${v}`)}
 						</div>
 					{/if}

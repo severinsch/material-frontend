@@ -23,4 +23,10 @@ describe('nextIdentifier', () => {
 		expect(nextIdentifier([])).toBe('1');
 		expect(nextIdentifier(['Rot'])).toBe('1');
 	});
+
+	it('skips taken identifiers', () => {
+		expect(nextIdentifier(['K01', 'K08'], ['K09', 'K10', 'K12'])).toBe('K11');
+		expect(nextIdentifier([], ['1', '2'])).toBe('3');
+		expect(nextIdentifier(['K45 01'], ['K02'])).toBe('K45 02');
+	});
 });

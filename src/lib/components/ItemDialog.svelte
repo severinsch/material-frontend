@@ -58,11 +58,15 @@
 			: null
 	);
 
-	/** The identifier after the highest one of the variant [variantId]; identifiers are unique per variant. */
+	/**
+	 * The identifier after the highest one of the variant [variantId], or of the material if the variant has no items.
+	 * Identifiers only need to be unique per variant, but the suggestion skips those of the other variants too: merged
+	 * materials keep one numbering across their variants (K01–K08, K09–K12), and two pieces labelled K09 would confuse.
+	 */
 	function suggestion(variantId: string) {
-		return nextIdentifier(
-			items.filter((item) => item.variantId === variantId).map((item) => item.identifier)
-		);
+		const all = items.map((item) => item.identifier);
+		const own = items.filter((item) => item.variantId === variantId).map((item) => item.identifier);
+		return nextIdentifier(own.length > 0 ? own : all, all);
 	}
 
 	function formOf(item?: IndividualItem, variantId = material.variants[0]?.id ?? '') {

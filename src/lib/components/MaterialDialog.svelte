@@ -1,4 +1,5 @@
 <script lang="ts">
+	import { tick } from 'svelte';
 	import PlusIcon from '@lucide/svelte/icons/plus';
 	import XIcon from '@lucide/svelte/icons/x';
 	import {
@@ -111,13 +112,21 @@
 	}
 
 	/** Switches from a single variant to a list, with a new variant; both need a name then. */
-	function startVariants() {
+	async function startVariants() {
 		form.variantList = true;
-		addVariant();
+		form.variants.push(variantFormOf(undefined, form));
+		await focusName(form.variants.findIndex((variant) => !variant.name.trim()));
 	}
 
-	function addVariant() {
+	async function addVariant() {
 		form.variants.push(variantFormOf(undefined, form));
+		await focusName(form.variants.length - 1);
+	}
+
+	/** Focuses the name field of the variant at [index] once it is rendered. */
+	async function focusName(index: number) {
+		await tick();
+		document.getElementById(`variant-${index}-name`)?.focus();
 	}
 
 	/** The saved name of [variant], as the API names it in messages. */
@@ -156,16 +165,24 @@
 		form.variants.push(variant);
 	}
 
-	/** Switching to one location per variant starts with the shared one; switching back takes the first variant's. */
+	/**
+	 * Switching to one location per variant starts with the shared one; switching back takes the first variant's. The
+	 * variants keep their own locations meanwhile, so switching off and on again only overwrites them if the shared
+	 * location was changed in between.
+	 */
 	function setLocationPerVariant(perVariant: boolean) {
-		if (perVariant) {
+		const [first] = form.variants;
+		const sharedChanged =
+			form.storageLocationId !== first.storageLocationId ||
+			form.locationDetail !== first.locationDetail;
+		if (perVariant && sharedChanged) {
 			for (const variant of form.variants) {
 				variant.storageLocationId = form.storageLocationId;
 				variant.locationDetail = form.locationDetail;
 			}
-		} else {
-			form.storageLocationId = form.variants[0].storageLocationId;
-			form.locationDetail = form.variants[0].locationDetail;
+		} else if (!perVariant) {
+			form.storageLocationId = first.storageLocationId;
+			form.locationDetail = first.locationDetail;
 		}
 		form.locationPerVariant = perVariant;
 	}

@@ -173,33 +173,38 @@
 	</div>
 
 	{#if selecting}
-		<div
-			class="flex flex-col gap-3 rounded-md border bg-muted/30 p-3 sm:flex-row sm:items-center"
-			role="region"
-			aria-label="Materialien zusammenführen"
-		>
-			<div class="flex-1 text-sm">
-				{#if selected.length === 0}
-					<p>
-						Wähle die Materialien aus, die Varianten eines Materials werden sollen, z. B. Seil 10 m,
-						Seil 15 m und Seil 20 m.
-					</p>
-				{:else}
-					<p aria-live="polite">
-						<span class="font-medium">{selected.length} ausgewählt:</span>
-						{selected.map((material) => material.name).join(', ')}
-					</p>
-					<p class="text-muted-foreground">
-						Dazu passen nur Materialien, die {selectableType === 'BULK' ? 'nach Menge' : 'einzeln'} erfasst
-						werden.
-					</p>
-				{/if}
-			</div>
-			<div class="flex gap-2">
-				<Button variant="outline" onclick={stopSelecting}>Abbrechen</Button>
-				<Button disabled={selected.length < 2} onclick={() => mergeDialog.show(selected)}>
-					Weiter
-				</Button>
+		<!-- Sticks below the header, so "Weiter" stays at hand after selecting further down the list. The opaque
+		     wrapper keeps the rows from showing through the tinted bar. -->
+		<div class="sticky top-14 z-40 bg-background pt-2">
+			<div
+				class="flex flex-col gap-3 rounded-md border bg-muted/30 p-3 sm:flex-row sm:items-center"
+				role="region"
+				aria-label="Materialien zusammenführen"
+			>
+				<div class="flex-1 text-sm">
+					{#if selected.length === 0}
+						<p>
+							Wähle die Materialien aus, die Varianten eines Materials werden sollen, z. B. Seil 10
+							m, Seil 15 m und Seil 20 m.
+						</p>
+					{:else}
+						<p aria-live="polite">
+							<span class="font-medium">{selected.length} ausgewählt:</span>
+							{selected.map((material) => material.name).join(', ')}
+						</p>
+						<p class="text-muted-foreground">
+							Dazu passen nur Materialien, die {selectableType === 'BULK'
+								? 'nach Menge'
+								: 'einzeln'} erfasst werden.
+						</p>
+					{/if}
+				</div>
+				<div class="flex gap-2">
+					<Button variant="outline" onclick={stopSelecting}>Abbrechen</Button>
+					<Button disabled={selected.length < 2} onclick={() => mergeDialog.show(selected)}>
+						Weiter
+					</Button>
+				</div>
 			</div>
 		</div>
 	{/if}

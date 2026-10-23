@@ -15,14 +15,22 @@ export function numberedIdentifiers(first: string, count: number): string[] | nu
 	);
 }
 
-/** The identifier after the highest numbered one in [existing], e.g. "K13" after "K01"–"K12"; "1" if there is none. */
-export function nextIdentifier(existing: string[]): string {
-	let highest: { identifier: string; number: number } | null = null;
+/**
+ * The identifier after the highest numbered one in [existing], e.g. "K13" after "K01"–"K12"; "1" if there is none.
+ * Identifiers in [taken] are skipped ("K14" if "K13" is taken).
+ */
+export function nextIdentifier(existing: string[], taken: string[] = []): string {
+	let highest: { prefix: string; digits: string } | null = null;
 	for (const identifier of existing) {
 		const match = numbered.exec(identifier);
-		if (match && (!highest || Number(match[2]) > highest.number)) {
-			highest = { identifier, number: Number(match[2]) };
+		if (match && (!highest || Number(match[2]) > Number(highest.digits))) {
+			highest = { prefix: match[1], digits: match[2] };
 		}
 	}
-	return highest ? numberedIdentifiers(highest.identifier, 2)![1] : '1';
+	const { prefix, digits } = highest ?? { prefix: '', digits: '0' };
+	const used = new Set(taken);
+	for (let number = Number(digits) + 1; ; number++) {
+		const next = prefix + String(number).padStart(digits.length, '0');
+		if (!used.has(next)) return next;
+	}
 }

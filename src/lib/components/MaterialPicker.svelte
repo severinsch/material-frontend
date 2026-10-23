@@ -32,6 +32,8 @@
 
 	let open = $state(false);
 	let trigger = $state<HTMLElement | null>(null);
+	/** While searching, variants are listed by their full name, since their material may not be among the hits. */
+	let search = $state('');
 
 	/**
 	 * A material with several variants is offered as "any variant" followed by its variants; others once, as the
@@ -101,7 +103,7 @@
 	}
 </script>
 
-<Popover.Root bind:open>
+<Popover.Root bind:open onOpenChange={() => (search = '')}>
 	<Popover.Trigger bind:ref={trigger}>
 		{#snippet child({ props })}
 			<Button
@@ -126,7 +128,7 @@
 		<Command.Root
 			filter={(_, search, keywords) => computeCommandScore(keywords?.[0] ?? '', search)}
 		>
-			<Command.Input placeholder="Material suchen…" />
+			<Command.Input placeholder="Material suchen…" bind:value={search} />
 			<Command.List>
 				<Command.Empty>Kein Material gefunden.</Command.Empty>
 				<Command.Group>
@@ -136,11 +138,12 @@
 							value={entry.key}
 							keywords={[entry.name]}
 							aria-label={entry.name}
-							class={entry.indented ? 'pl-6' : ''}
+							class={entry.indented && !search ? 'pl-6' : ''}
 							onSelect={() => choose(entry)}
 						>
-							<CheckIcon class={isSelected(entry) ? '' : 'text-transparent'} />
-							{entry.label}
+							<!-- Not text-transparent: the highlighted item colours its icons. -->
+							<CheckIcon class={isSelected(entry) ? '' : 'opacity-0'} />
+							{search ? entry.name : entry.label}
 						</Command.Item>
 					{/each}
 				</Command.Group>

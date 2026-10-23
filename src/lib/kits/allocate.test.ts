@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Kit, KitGroup } from '#lib/api/index.js';
-import { activePins, allocate, needsOf, type KitSelection } from './allocate.js';
+import { activePins, allocate, needsOf, unitsOf, type KitSelection } from './allocate.js';
 
 // Variant ids are the material id, followed by the variant's name for materials with several ("seil 20"). An option
 // "seil" accepts any variant of the material, "seil 20" only that one.
@@ -389,6 +389,14 @@ describe('exact allocation', () => {
 		});
 	});
 
+	it('marks a greedy allocation approximate only if it has a shortage', () => {
+		const roof = kit('roof', group([['halbdach', 3], ['blatt']], 6));
+		expect(run([select(roof)], { halbdach: 2, blatt: 6 }, 0)).toMatchObject({
+			shortages: [],
+			approximate: false
+		});
+	});
+
 	it('falls back to the greedy allocation past the budget', () => {
 		const jurte = kit('jurte', group([['plane'], ['halbdach', 3]], 6));
 		const kohte = kit('kohte', group([['plane'], ['blatt']], 6));
@@ -521,6 +529,39 @@ describe('allocation of the demo kits', () => {
 		theaterplane: 4
 	};
 
+	const times = (factor: number) =>
+		Object.fromEntries(Object.entries(stock).map(([id, pieces]) => [id, pieces * factor]));
+
+	it('allocates a camp with enough stock at once', () => {
+		const lines = [
+			select(jurte, 3, [0, 0, 0, 0, 1]),
+			select(kohte, 6),
+			select(ovaljurte, 1, [0, 0, 0, 0, 0, 1]),
+			select(superjurte, 1, [0, 0, 0, 0, 0, 0, 1]),
+			select(jurte, 1, [0, 0, 0, 1])
+		];
+		const start = performance.now();
+		const result = run(lines, times(3));
+		expect(performance.now() - start).toBeLessThan(50);
+		expect(result).toMatchObject({ shortages: [], approximate: false });
+	});
+
+	it('searches a camp short of a few things exactly', () => {
+		const lines = [
+			select(jurte, 3, [0, 0, 0, 0, 1]),
+			select(jurte, 1, [0, 0, 0, 1]),
+			select(kohte, 4),
+			select(ovaljurte, 1, [0, 0, 0, 0, 0, 1]),
+			select(superjurte, 1, [0, 0, 0, 0, 0, 0, 1]),
+			select(kohte, 1),
+			select(jurte, 1, [0, 0, 0, 1, 1]),
+			select(ovaljurte, 2)
+		];
+		const result = run(lines, times(3));
+		expect(result.approximate).toBe(false);
+		expect(result.shortages.length).toBeGreaterThan(0);
+	});
+
 	it('searches a large camp exactly and quickly', () => {
 		const lines = [
 			select(jurte, 3, [0, 0, 0, 0, 1]),
@@ -536,7 +577,7 @@ describe('allocation of the demo kits', () => {
 		const result = run(lines, stock);
 		const elapsed = performance.now() - start;
 		expect(result.approximate).toBe(false);
-		expect(elapsed).toBeLessThan(500);
+		expect(elapsed).toBeLessThan(200);
 	});
 });
 
@@ -557,11 +598,21 @@ describe('allocate against a brute-force search', () => {
 		rank: number;
 	}
 
-	/** The cost of the best allocation: missing units, waste, units at rank 1 or worse, 2 or worse. */
-	function bruteForce(demands: { units: number; uses: Use[] }[], stock: Record<string, number>) {
+	/** A group of a line as the allocation sees it: units, and the variants its options (or its pin) accept. */
+	interface Demand {
+		line: number;
+		groupIndex: number;
+		units: number;
+		uses: Use[];
+	}
+
+	const WIDTH = 5; // missing units, waste, units at rank 1, 2 and 3 or worse
+
+	/** The cost of the best allocation of [demands]. */
+	function bruteForce(demands: Demand[], stock: Record<string, number>) {
 		let best: number[] | undefined;
 		const left = { ...stock };
-		const cost = [0, 0, 0, 0];
+		const cost = new Array<number>(WIDTH).fill(0);
 		const visit = (d: number, u: number, covered: number) => {
 			if (d === demands.length) {
 				if (!best || isLess(cost, best)) best = [...cost];
@@ -587,7 +638,7 @@ describe('allocate against a brute-force search', () => {
 			}
 		};
 		visit(0, 0, 0);
-		return best;
+		return best!;
 	}
 
 	function isLess(a: number[], b: number[]) {
@@ -598,9 +649,9 @@ describe('allocate against a brute-force search', () => {
 	it('finds an allocation as good as the best one', () => {
 		const next = random(7);
 		const int = (max: number) => Math.floor(next() * (max + 1));
-		// Single-variant materials and one material with two variants.
-		const pool = ['a', 'b', 'c', 's', 's x', 's y'];
-		for (let round = 0; round < 300; round++) {
+		// Single-variant materials, one with two variants and one without variants.
+		const pool = ['a', 'b', 'c', 's', 's x', 's y', 'geist'];
+		for (let round = 0; round < 400; round++) {
 			const stock: Record<string, number> = {};
 			for (const variant of ['a', 'b', 'c', 's x', 's y']) stock[variant] = int(3);
 			const kits = Array.from({ length: 1 + int(1) }, (_, k) =>
@@ -614,51 +665,74 @@ describe('allocate against a brute-force search', () => {
 								option === 's' ? !all.some((o) => o.startsWith('s ')) : true
 							)
 							.slice(0, 1 + int(1));
+						const units = 1 + int(4);
 						return group(
-							options.map((option) => [option, 1 + int(2), int(1)]),
-							1 + int(4)
+							options.map((option) => [option, 1 + int(2), int(3)]),
+							...(int(2) === 0 ? optional(units) : [units])
 						);
 					})
 				)
 			);
-			const lines = kits.map((k) => select(k, 1 + int(1)));
+			const lines = Array.from({ length: 1 + int(2) }, () => {
+				const k = kits[int(kits.length - 1)];
+				const pins = k.groups.map(({ options }) => {
+					const option = options[int(options.length - 1)];
+					return next() < 0.3
+						? (option.variantId ?? option.materialId)
+						: next() < 0.1
+							? 'geist'
+							: null;
+				});
+				return select(
+					k,
+					1 + int(1),
+					k.groups.map((g) => int(g.amounts.length - 1)),
+					pins
+				);
+			});
 			const [stockMap, variants] = stockOf(stock);
 			const result = allocate(lines, stockMap, variants);
 
-			// The demands with their variants, unit values and dense ranks, as the brute force sees them.
-			const demands = lines.flatMap(({ kit, quantity }) =>
-				kit.groups.map((g) => {
-					const priorities = [...new Set(g.options.map((o) => o.priority))].sort((x, y) => x - y);
-					return {
-						units: g.amounts[0].requiredUnits * quantity,
-						uses: g.options.flatMap((o) =>
-							(o.variantId ? [o.variantId] : (variants.get(o.materialId) ?? [])).map(
-								(variantId) => ({
-									variantId,
-									unitValue: o.unitValue,
-									rank: priorities.indexOf(o.priority)
-								})
-							)
-						)
-					};
-				})
-			);
-			const cost = [0, 0, 0, 0];
-			let index = 0;
-			lines.forEach(({ kit }, line) =>
-				kit.groups.forEach((_, groupIndex) => {
-					const { units, uses } = demands[index++];
-					let covered = 0;
-					for (const a of result.assignments) {
-						if (a.line !== line || a.groupIndex !== groupIndex || a.missing) continue;
-						const use = uses.find((u) => u.variantId === a.variantId)!;
-						covered += a.pieces * use.unitValue;
-						for (let r = 1; r <= use.rank; r++) cost[1 + r] += a.pieces * use.unitValue;
+			const demands: Demand[] = lines.flatMap((selection, line) => {
+				const pins = activePins(selection);
+				return selection.kit.groups.flatMap((g, groupIndex) => {
+					const units = unitsOf(selection, groupIndex) * selection.quantity;
+					if (units <= 0) return [];
+					const options = pins[groupIndex] ? [pins[groupIndex]] : g.options;
+					const priorities = [...new Set(options.map((o) => o.priority))].sort((x, y) => x - y);
+					const uses = options.flatMap((o) =>
+						(o.variantId ? [o.variantId] : (variants.get(o.materialId) ?? [])).map((variantId) => ({
+							variantId,
+							unitValue: o.unitValue,
+							rank: priorities.indexOf(o.priority)
+						}))
+					);
+					return [{ line, groupIndex, units, uses }];
+				});
+			});
+			const cost = new Array<number>(WIDTH).fill(0);
+			for (const { line, groupIndex, units, uses } of demands) {
+				let covered = 0;
+				let missing = 0;
+				for (const a of result.assignments) {
+					if (a.line !== line || a.groupIndex !== groupIndex) continue;
+					if (a.missing) {
+						missing += a.pieces;
+						continue;
 					}
-					cost[0] += Math.max(0, units - covered);
-					cost[1] += Math.max(0, covered - units);
-				})
-			);
+					const use = uses.find((u) => u.variantId === a.variantId)!;
+					covered += a.pieces * use.unitValue;
+					for (let r = 1; r <= use.rank; r++) cost[1 + r] += a.pieces * use.unitValue;
+				}
+				const short = Math.max(0, units - covered);
+				cost[0] += short;
+				cost[1] += Math.max(0, covered - units);
+				const shortage = result.shortages.find(
+					(s) => s.line === line && s.groupIndex === groupIndex
+				);
+				expect(shortage?.missingUnits ?? 0).toBe(short);
+				expect(missing > 0).toBe(short > 0);
+			}
 			// Stock is never overused.
 			for (const [variantId, pieces] of Object.entries(stock)) {
 				const used = result.assignments

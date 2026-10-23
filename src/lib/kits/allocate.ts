@@ -44,8 +44,8 @@ export interface Allocation {
 	assignments: Assignment[];
 	shortages: GroupShortage[];
 	/**
-	 * Whether the selection was too large to search exactly and part of it was allocated greedily, so some shortages
-	 * might be avoidable.
+	 * Whether the selection was too large to search exactly and a part of it allocated greedily has a shortage, which
+	 * a different distribution might avoid.
 	 */
 	approximate: boolean;
 }
@@ -102,9 +102,14 @@ export function activePins(
 ): (KitGroupOption | undefined)[] {
 	return selection.kit.groups.map((group, groupIndex) => {
 		const pin = selection.pins?.[groupIndex];
-		if (!pin || group.options.length < 2 || unitsOf(selection, groupIndex) <= 0) return undefined;
+		if (!pin || !isPinnable(selection, groupIndex)) return undefined;
 		return group.options.find((option) => optionId(option) === pin);
 	});
+}
+
+/** Whether a group of [selection] can be pinned: it has several options and is packed (not "ohne"). */
+export function isPinnable(selection: Omit<KitSelection, 'quantity'>, groupIndex: number): boolean {
+	return selection.kit.groups[groupIndex].options.length > 1 && unitsOf(selection, groupIndex) > 0;
 }
 
 /** The variants an option accepts: its variant, or all variants of its material. */
@@ -138,8 +143,11 @@ interface VariantClass {
 	uses: { demand: number; unitValue: number; rank: number }[];
 }
 
-/** Upper bound for the fills the exact search evaluates, which keeps the page responsive for huge selections. */
-export const SEARCH_BUDGET = 300_000;
+/**
+ * Upper bound for the steps of the exact search, which keeps the page responsive for huge selections (about 20 ms on
+ * a desktop). Realistic lists need far fewer.
+ */
+export const SEARCH_BUDGET = 500_000;
 
 /**
  * Distributes the available stock over the groups of the selected lines.
@@ -153,15 +161,16 @@ export const SEARCH_BUDGET = 300_000;
  * 3. the fewest units (pieces × unit value) from options other than a group's most preferred ones, then from
  *    options below its two most preferred priorities, and so on; options with the same priority count the same;
  * 4. earlier lines first, then the kit's group order.
- * Among variants a group treats alike, the one with the most stock left is taken first. A shortage is thus only
+ * Among variants every group treats alike, the one with the most stock left is taken first. A shortage is thus only
  * reported if no distribution covers everything; the missing pieces are assigned to the group's preferred (or
  * pinned) option, so the shortage shows up there, and the missing units are reported per group. Since the result
  * depends on the whole selection, adding a kit can change what an earlier one gets.
  *
- * The search is exact: variants treated alike by every group are pooled into classes, groups that share no class
- * are searched separately, and a depth-first search over the groups is memoized on the stock left. If a selection
- * needs more than [budget] steps, the rest is allocated greedily (each group in priority order) and the result is
- * marked approximate.
+ * The search is exact: variants treated alike by every group are pooled into classes, and groups that share no class
+ * are searched separately. If every group's best fill on its own fits into the stock, that's the result; otherwise a
+ * depth-first search over the groups, memoized on the stock left, skips fills that can't beat the best found so far.
+ * If a selection needs more than [budget] steps, the parts left are allocated greedily (each group in priority
+ * order), and the result is marked approximate if they have a shortage.
  *
  * @param stock usable pieces per variant id
  * @param variants the variant ids of each material, by material id
@@ -180,11 +189,15 @@ export function allocate(
 	const steps = { left: budget };
 	let approximate = false;
 
-	for (const component of componentsOf(demands, classes)) {
+	// Smaller components first, so that one too large to search doesn't use up the steps of the others.
+	const components = componentsOf(demands, classes).toSorted(
+		(a, b) => a.demands.length * a.classes.length - b.demands.length * b.classes.length
+	);
+	for (const component of components) {
 		const result = search(component, demands, classes, steps);
 		if (!result) {
-			approximate = true;
-			greedy(component.demands, demands, left, assigned, shortages);
+			// Without a shortage, nothing is lost but maybe a preferred option.
+			if (greedy(component.demands, demands, left, assigned, shortages)) approximate = true;
 			continue;
 		}
 		component.demands.forEach((d, k) => {
@@ -300,8 +313,9 @@ function search(
 	steps: { left: number }
 ): SearchResult | undefined {
 	const n = component.demands.length;
-	// The classes each demand can use, in the order fills try them: preferred, larger pieces, more stock.
-	const uses = component.demands.map((d) =>
+	// The classes each demand can use, in the order fills try them: preferred, larger pieces, more stock. The order
+	// must not depend on the stock left, since the memo below shares results between different paths.
+	const classUses = component.demands.map((d) =>
 		component.classes
 			.flatMap((c, local) => {
 				const use = classes[c].uses.find((u) => u.demand === d);
@@ -312,89 +326,160 @@ function search(
 			.sort((a, b) => a.rank - b.rank || b.unitValue - a.unitValue || b.stock - a.stock)
 	);
 	const units = component.demands.map((d) => demands[d].units);
-	const width = 2 + Math.max(0, ...uses.flat().map((use) => use.rank));
-
-	// Stock beyond what the remaining demands could take makes no difference, so the memo key caps it.
-	const caps = Array.from({ length: n + 1 }, () => component.classes.map(() => 0));
+	const width = 2 + Math.max(0, ...classUses.flat().map((use) => use.rank));
+	const zero = new Array<number>(width).fill(0);
+	const stock = component.classes.map((c) => classes[c].stock);
+	// Per demand index, the units the demands from it on need, and the most units a piece of each class counts for in
+	// them, for a lower bound of the units they will miss.
+	const unitsFrom = [0];
+	const mostFrom = [stock.map(() => 0)];
 	for (let k = n - 1; k >= 0; k--) {
-		caps[k] = [...caps[k + 1]];
-		for (const use of uses[k]) caps[k][use.local] += Math.ceil(units[k] / use.unitValue);
+		unitsFrom.unshift(unitsFrom[0] + units[k]);
+		const most = [...mostFrom[0]];
+		for (const { local, unitValue } of classUses[k]) most[local] = Math.max(most[local], unitValue);
+		mostFrom.unshift(most);
 	}
-	const radices = caps.map((cap) => {
-		let product = 1;
-		const radix = cap.map((max) => {
-			const value = product;
-			product *= max + 1;
-			return value;
-		});
-		return product <= Number.MAX_SAFE_INTEGER ? radix : undefined;
-	});
-	const keyOf = (k: number, left: number[]): number | string => {
-		const radix = radices[k];
-		if (!radix) return left.map((value, c) => Math.min(value, caps[k][c])).join(',');
-		return left.reduce((key, value, c) => key + Math.min(value, caps[k][c]) * radix[c], 0);
+	const charge = (amount: number) => {
+		steps.left -= amount;
+		if (steps.left < 0) throw outOfSteps;
 	};
 
-	const memo = Array.from({ length: n }, () => new Map<number | string, Fill>());
-	const none: Fill = { cost: new Array<number>(width).fill(0), pieces: [], missing: 0 };
-
-	/** The best fill of demand [k] given the stock [left] per class (restored before returning). */
-	const best = (k: number, left: number[]): Fill => {
-		if (k === n) return none;
-		const key = keyOf(k, left);
-		const cached = memo[k].get(key);
-		if (cached) return cached;
-		const options = uses[k];
-		const pieces = options.map(() => 0);
+	/**
+	 * The best fill of demand [k] with the stock [left] per class (restored before returning). [rest] gives the cost of
+	 * the best fills of the following demands for the stock a fill leaves, and [restBound] is a lower bound of it;
+	 * without them, the fill is the best for the demand on its own. Fills are tried in a fixed order and the first of
+	 * equally good ones wins; fills that can't beat the best one found so far are skipped.
+	 */
+	const bestFill = (
+		k: number,
+		left: number[],
+		rest?: (left: number[]) => number[],
+		restBound = zero
+	): Fill => {
+		const uses = classUses[k];
+		const pieces = uses.map(() => 0);
+		// A lower bound of the cost of any fill completing the current one: the rest's bound plus the units at each
+		// rank so far, plus (set while checking) the units that the remaining classes can't fill.
+		const bound = [...restBound];
+		const floor = new Array<number>(width).fill(0);
 		const own = new Array<number>(width);
 		let found: Fill | undefined;
 		const visit = (i: number, remaining: number) => {
-			if (i === options.length || remaining <= 0) {
-				if (--steps.left < 0) throw outOfSteps;
-				const rest = best(k + 1, left).cost;
+			charge(1);
+			if (found) {
+				let reachable = 0;
+				for (let j = i; j < uses.length; j++) reachable += left[uses[j].local] * uses[j].unitValue;
+				bound[0] = restBound[0] + Math.max(0, remaining - reachable);
+				let hopeless = !isLessSum(bound, zero, found.cost);
+				bound[0] = restBound[0];
+				if (!hopeless && rest) {
+					// The units the stock left can't fill in this demand and the following ones together, with only
+					// this fill's ranks: the rest's bound comes from fills that may avoid missing units by other ranks.
+					let supply = 0;
+					for (let c = 0; c < left.length; c++) supply += left[c] * mostFrom[k][c];
+					floor[0] = Math.max(0, remaining) + unitsFrom[k + 1] - supply;
+					for (let r = 2; r < width; r++) floor[r] = bound[r] - restBound[r];
+					hopeless = !isLessSum(floor, zero, found.cost);
+				}
+				if (hopeless) return;
+			}
+			if (i === uses.length || remaining <= 0) {
+				const restCost = rest ? rest(left) : zero;
 				own.fill(0);
 				own[0] = Math.max(0, remaining);
 				own[1] = Math.max(0, -remaining);
-				options.forEach(({ rank, unitValue }, j) => {
+				uses.forEach(({ rank, unitValue }, j) => {
 					for (let r = 1; r <= rank; r++) own[1 + r] += pieces[j] * unitValue;
 				});
-				if (!found || isLessSum(own, rest, found.cost)) {
-					const cost = own.map((value, index) => value + rest[index]);
+				if (!found || isLessSum(own, restCost, found.cost)) {
+					const cost = own.map((value, index) => value + restCost[index]);
 					found = { cost, pieces: [...pieces], missing: own[0] };
 				}
 				return;
 			}
-			const { local, unitValue } = options[i];
+			const { local, unitValue, rank } = uses[i];
 			// More than this would leave a piece that isn't needed to cover the group.
 			for (let p = Math.min(left[local], Math.ceil(remaining / unitValue)); p >= 0; p--) {
 				pieces[i] = p;
 				left[local] -= p;
+				for (let r = 1; r <= rank; r++) bound[1 + r] += p * unitValue;
 				visit(i + 1, remaining - p * unitValue);
+				for (let r = 1; r <= rank; r++) bound[1 + r] -= p * unitValue;
 				left[local] += p;
 			}
 			pieces[i] = 0;
 		};
 		visit(0, units[k]);
-		memo[k].set(key, found!);
 		return found!;
 	};
 
+	const resultOf = (fills: Fill[]): SearchResult => ({
+		pieces: fills.map((fill, k) =>
+			classUses[k].flatMap(({ local }, j) =>
+				fill.pieces[j] > 0 ? [[local, fill.pieces[j]] as [number, number]] : []
+			)
+		),
+		missing: fills.map((fill) => fill.missing)
+	});
+
 	try {
-		const left = component.classes.map((c) => classes[c].stock);
-		const result: SearchResult = { pieces: [], missing: [] };
-		for (let k = 0; k < n; k++) {
-			const { pieces, missing } = best(k, left);
-			result.pieces.push(
-				uses[k].flatMap(({ local }, j) => {
-					left[local] -= pieces[j];
-					return pieces[j] > 0 ? [[local, pieces[j]] as [number, number]] : [];
-				})
-			);
-			result.missing.push(missing);
+		// Each demand's best fill on its own. If they fit into the stock together, that's the best for all, and the
+		// one the search would find (the usual case with enough stock). Otherwise their costs bound the search.
+		const alone = classUses.map((_, k) => bestFill(k, stock));
+		const taken = stock.map(() => 0);
+		alone.forEach((fill, k) =>
+			classUses[k].forEach(({ local }, j) => (taken[local] += fill.pieces[j]))
+		);
+		if (taken.every((pieces, c) => pieces <= stock[c])) return resultOf(alone);
+		const bounds = [zero];
+		for (let k = n - 1; k >= 0; k--) {
+			bounds.unshift(bounds[0].map((value, index) => value + alone[k].cost[index]));
 		}
-		return result;
+
+		// Stock beyond what the remaining demands could take makes no difference, so the memo key caps it.
+		const caps = Array.from({ length: n + 1 }, () => stock.map(() => 0));
+		for (let k = n - 1; k >= 0; k--) {
+			caps[k] = [...caps[k + 1]];
+			for (const use of classUses[k]) caps[k][use.local] += Math.ceil(units[k] / use.unitValue);
+		}
+		const radices = caps.map((cap) => {
+			let product = 1;
+			const radix = cap.map((max) => {
+				const value = product;
+				product *= max + 1;
+				return value;
+			});
+			return product <= Number.MAX_SAFE_INTEGER ? radix : undefined;
+		});
+		const keyOf = (k: number, left: number[]): number | string => {
+			const radix = radices[k];
+			if (!radix) return left.map((value, c) => Math.min(value, caps[k][c])).join(',');
+			return left.reduce((key, value, c) => key + Math.min(value, caps[k][c]) * radix[c], 0);
+		};
+		const memo = Array.from({ length: n }, () => new Map<number | string, Fill>());
+		const none: Fill = { cost: zero, pieces: [], missing: 0 };
+		const best = (k: number, left: number[]): Fill => {
+			if (k === n) return none;
+			charge(stock.length);
+			const key = keyOf(k, left);
+			const cached = memo[k].get(key);
+			if (cached) return cached;
+			const found = bestFill(k, left, (rest) => best(k + 1, rest).cost, bounds[k + 1]);
+			memo[k].set(key, found);
+			return found;
+		};
+
+		const left = [...stock];
+		const fills: Fill[] = [];
+		for (let k = 0; k < n; k++) {
+			const fill = best(k, left);
+			classUses[k].forEach(({ local }, j) => (left[local] -= fill.pieces[j]));
+			fills.push(fill);
+		}
+		return resultOf(fills);
 	} catch (error) {
-		if (error === outOfSteps) return undefined;
+		// Running out of steps, or of stack for thousands of groups sharing materials.
+		if (error === outOfSteps || error instanceof RangeError) return undefined;
 		throw error;
 	}
 }
@@ -470,7 +555,7 @@ function addMissing(
 /**
  * The fallback for selections too large to search: groups whose options cover fewer variants first, each taking its
  * options in priority order, first only whole pieces that fit into the remaining units, then rounding up to cover the
- * rest. Within an option, the variant with the most stock left comes first.
+ * rest. Within an option, the variant with the most stock left comes first. Returns whether a group is short.
  */
 function greedy(
 	indices: number[],
@@ -478,8 +563,9 @@ function greedy(
 	left: Map<string, number>,
 	assigned: Assignment[][],
 	shortages: (GroupShortage | undefined)[]
-) {
+): boolean {
 	const leftOf = (variantId: string) => left.get(variantId) ?? 0;
+	let short = false;
 	const covered = (d: number) =>
 		new Set(demands[d].options.flatMap((option) => option.candidates)).size;
 	for (const d of indices.toSorted((a, b) => covered(a) - covered(b))) {
@@ -498,8 +584,12 @@ function greedy(
 				}
 			}
 		}
-		if (remaining > 0) addMissing(demand, d, remaining, assigned, shortages);
+		if (remaining > 0) {
+			addMissing(demand, d, remaining, assigned, shortages);
+			short = true;
+		}
 	}
+	return short;
 }
 
 /**

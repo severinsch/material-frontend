@@ -19,8 +19,8 @@
 		allocate,
 		needsOf,
 		optionId,
+		isPinnable,
 		sortedOptions,
-		unitsOf,
 		type MaterialNeed
 	} from '#lib/kits/allocate.js';
 	import {
@@ -63,7 +63,10 @@
 	/** replaceState only works once the router has started. */
 	let routerReady = $state(false);
 	afterNavigate(({ type }) => {
-		if (type !== 'enter') lines = parseSelection(page.url.searchParams, data.kits);
+		if (type !== 'enter') {
+			lines = parseSelection(page.url.searchParams, data.kits);
+			revealed.clear();
+		}
 		routerReady = true;
 	});
 
@@ -226,15 +229,17 @@
 	}
 
 	/** Whether [line] has the default choices and no pins that count. */
-	function isPlain(kit: Kit, line: PackingLine) {
-		return (
-			line.choices.every((choice) => choice === 0) && !activePins({ kit, ...line }).some(Boolean)
-		);
+	/**
+	 * Whether [line] has the default choices and no pins, not even inactive ones: adding to a line whose windows are
+	 * pinned while packed without would pin the added kits too once "mit" is chosen.
+	 */
+	function isPlain(line: PackingLine) {
+		return line.choices.every((choice) => choice === 0) && line.pins.every((pin) => !pin);
 	}
 
 	/** Adds [kit] with the default choices and no pins, to the line that already has them if there is one. */
 	function addKit(kit: Kit) {
-		const existing = linesOf(kit).find((line) => isPlain(kit, line));
+		const existing = linesOf(kit).find((line) => isPlain(line));
 		if (existing) existing.quantity++;
 		else lines.push(newLine(kit));
 	}
@@ -249,9 +254,7 @@
 	/** The groups of [line] whose option can be pinned: several options, and packed (not "ohne"). */
 	function pinnableGroups(kit: Kit, line: PackingLine) {
 		return kit.groups.flatMap((group, index) =>
-			group.options.length > 1 && unitsOf({ kit, choices: line.choices }, index) > 0
-				? [{ group, index }]
-				: []
+			isPinnable({ kit, choices: line.choices }, index) ? [{ group, index }] : []
 		);
 	}
 
@@ -266,7 +269,15 @@
 
 	function setQuantity(line: PackingLine, quantity: number) {
 		if (quantity > 0) line.quantity = quantity;
-		else lines.splice(lines.indexOf(line), 1);
+		else {
+			lines.splice(lines.indexOf(line), 1);
+			revealed.delete(line);
+		}
+	}
+
+	function clearLines() {
+		lines = [];
+		revealed.clear();
 	}
 
 	function listText() {
@@ -438,7 +449,7 @@
 								aria-label="{kit.name} zur Packliste hinzufügen"
 								onclick={() => addKit(kit)}><PlusIcon />Zur Packliste</Button
 							>
-						{:else if !choices && kitLines.length === 1 && isPlain(kit, kitLines[0])}
+						{:else if !choices && kitLines.length === 1 && isPlain(kitLines[0])}
 							{@render quantityButtons(kitLines[0], kit.name)}
 							<span class="text-sm text-muted-foreground">auf der Packliste</span>
 						{:else}
@@ -493,7 +504,7 @@
 						>
 							<PrinterIcon />
 						</Button>
-						<Button variant="ghost" size="sm" onclick={() => (lines = [])}>Leeren</Button>
+						<Button variant="ghost" size="sm" onclick={clearLines}>Leeren</Button>
 					</div>
 				{/if}
 			</div>
@@ -513,7 +524,7 @@
 							{#each lines as line (line)}
 								{@const kit = kits.get(line.kitId)}
 								{#if kit}
-									{@const label = lineLabel({ kit, choices: line.choices }, plainName)}
+									{@const label = lineLabel({ kit, ...line }, plainName)}
 									<li class="space-y-1.5">
 										<div class="flex items-center gap-1">
 											<span class="flex-1">{kit.name}</span>
@@ -531,7 +542,7 @@
 										{#if hasChoices(kit) || hasAlternatives(kit)}
 											{@const pinnable = pinnableGroups(kit, line)}
 											{@const showPins =
-												revealed.has(line) || pinnable.some(({ index }) => line.pins[index])}
+												revealed.has(line) || activePins({ kit, ...line }).some(Boolean)}
 											<div class="flex flex-wrap items-center gap-1.5">
 												{#each kit.groups as group, g (g)}
 													{#if group.amounts.length > 1}
@@ -588,10 +599,7 @@
 														variant="ghost"
 														size="sm"
 														class="h-7 text-muted-foreground"
-														aria-label="Alternativen für {lineLabel(
-															{ kit, choices: line.choices },
-															plainName
-														)} festlegen"
+														aria-label="Alternativen für {label} festlegen"
 														onclick={() => revealed.add(line)}
 													>
 														<ListChecksIcon />Alternativen festlegen

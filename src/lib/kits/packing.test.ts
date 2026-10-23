@@ -54,13 +54,14 @@ const names: Record<string, string> = {
 };
 const nameOf = (option: { materialId: string; variantId?: string | null }) =>
 	option.variantId ?? names[option.materialId];
+const kits = new Map([[jurte.id, jurte]]);
 
 describe('selection in the URL', () => {
 	it('round-trips lines with their non-default choices', () => {
 		const lines = [
-			{ kitId: 'jurte', quantity: 2, choices: [0, 0, 0, 1] },
-			{ kitId: 'jurte', quantity: 1, choices: [0, 0, 1, 0] },
-			{ kitId: 'jurte', quantity: 3, choices: [0, 0, 0, 0] }
+			{ kitId: 'jurte', quantity: 2, choices: [0, 0, 0, 1], pins: [null, null, null, null] },
+			{ kitId: 'jurte', quantity: 1, choices: [0, 0, 1, 0], pins: [null, null, null, null] },
+			{ kitId: 'jurte', quantity: 3, choices: [0, 0, 0, 0], pins: [null, null, null, null] }
 		];
 		const params = new URLSearchParams(serializeSelection(lines).map((v) => ['kit', v]));
 		expect(params.toString()).toBe('kit=jurte*2*3-1&kit=jurte*1*2-1&kit=jurte*3');
@@ -68,7 +69,9 @@ describe('selection in the URL', () => {
 	});
 
 	it('lists several choices of a line', () => {
-		const lines = [{ kitId: 'jurte', quantity: 1, choices: [0, 0, 1, 1] }];
+		const lines = [
+			{ kitId: 'jurte', quantity: 1, choices: [0, 0, 1, 1], pins: [null, null, null, null] }
+		];
 		expect(serializeSelection(lines)).toEqual(['jurte*1*2-1.3-1']);
 	});
 
@@ -77,14 +80,49 @@ describe('selection in the URL', () => {
 			'kit=kohte*1&kit=jurte*x&kit=jurte*0&kit=jurte*1*0-1.2-2.9-1.3-1.2.-1.x-1.3-'
 		);
 		expect(parseSelection(params, [jurte])).toEqual([
-			{ kitId: 'jurte', quantity: 1, choices: [0, 0, 0, 1] }
+			{ kitId: 'jurte', quantity: 1, choices: [0, 0, 0, 1], pins: [null, null, null, null] }
 		]);
+	});
+
+	it('round-trips pins, also without choices', () => {
+		const lines = [
+			{
+				kitId: 'jurte',
+				quantity: 1,
+				choices: [0, 0, 0, 0],
+				pins: [null, 'kohtenblatt', null, null]
+			},
+			{ kitId: 'jurte', quantity: 2, choices: [0, 0, 1, 0], pins: [null, 'halbdach', null, null] }
+		];
+		const params = new URLSearchParams(serializeSelection(lines).map((v) => ['kit', v]));
+		expect(params.toString()).toBe('kit=jurte*1**1-kohtenblatt&kit=jurte*2*2-1*1-halbdach');
+		expect(parseSelection(params, [jurte])).toEqual(lines);
+	});
+
+	it('reads option ids that contain dashes', () => {
+		const id = '0b9e6f1c-3a1d-4c55-9a43-7c2d0e1f2a3b';
+		const kit: Kit = {
+			...jurte,
+			groups: [
+				{
+					...jurte.groups[1],
+					options: [...jurte.groups[1].options, { materialId: id, unitValue: 1, priority: 2 }]
+				}
+			]
+		};
+		const params = new URLSearchParams(`kit=jurte*1**0-${id}`);
+		expect(parseSelection(params, [kit])[0].pins).toEqual([id]);
+	});
+
+	it('ignores unknown pins and pins of groups without alternatives', () => {
+		const params = new URLSearchParams('kit=jurte*1**0-hering.1-geist.x-halbdach.9-halbdach.1');
+		expect(parseSelection(params, [jurte])[0].pins).toEqual([null, null, null, null]);
 	});
 
 	it('uses the default amounts when no choice is listed', () => {
 		const params = new URLSearchParams('kit=jurte*1');
 		expect(parseSelection(params, [jurte])).toEqual([
-			{ kitId: 'jurte', quantity: 1, choices: [0, 0, 0, 0] }
+			{ kitId: 'jurte', quantity: 1, choices: [0, 0, 0, 0], pins: [null, null, null, null] }
 		]);
 	});
 });
@@ -100,17 +138,81 @@ describe('lines', () => {
 
 	it('combines identical lines in the order of their first appearance', () => {
 		const lines = [
-			{ kitId: 'jurte', quantity: 2, choices: [0, 0, 0, 0] },
-			{ kitId: 'jurte', quantity: 1, choices: [0, 0, 1, 0] },
-			{ kitId: 'kohte', quantity: 1, choices: [0] },
-			{ kitId: 'jurte', quantity: 1, choices: [0, 0, 0, 0] }
+			{ kitId: 'jurte', quantity: 2, choices: [0, 0, 0, 0], pins: [null, null, null, null] },
+			{ kitId: 'jurte', quantity: 1, choices: [0, 0, 1, 0], pins: [null, null, null, null] },
+			{ kitId: 'kohte', quantity: 1, choices: [0], pins: [null] },
+			{ kitId: 'jurte', quantity: 1, choices: [0, 0, 0, 0], pins: [null, null, null, null] }
 		];
-		expect(combineLines(lines)).toEqual([
-			{ kitId: 'jurte', quantity: 3, choices: [0, 0, 0, 0] },
-			{ kitId: 'jurte', quantity: 1, choices: [0, 0, 1, 0] },
-			{ kitId: 'kohte', quantity: 1, choices: [0] }
+		const kohte: Kit = { ...jurte, id: 'kohte', groups: [jurte.groups[0]] };
+		expect(combineLines(lines, new Map([...kits, ['kohte', kohte]]))).toEqual([
+			{
+				kitId: 'jurte',
+				kit: jurte,
+				quantity: 3,
+				choices: [0, 0, 0, 0],
+				pins: [null, null, null, null]
+			},
+			{
+				kitId: 'jurte',
+				kit: jurte,
+				quantity: 1,
+				choices: [0, 0, 1, 0],
+				pins: [null, null, null, null]
+			},
+			{ kitId: 'kohte', kit: kohte, quantity: 1, choices: [0], pins: [null] }
 		]);
 		expect(lines[0].quantity).toBe(2);
+	});
+
+	it('combines lines by their active pins', () => {
+		const line = (pins: (string | null)[], choices = [0, 0, 0, 0]) => ({
+			kitId: 'jurte',
+			quantity: 1,
+			choices,
+			pins
+		});
+		const combined = combineLines(
+			[
+				line([null, 'halbdach', null, null]),
+				line([null, null, null, null]),
+				line([null, 'halbdach', null, null]),
+				// The windows are packed without, so their pin doesn't count.
+				line([null, null, null, 'fenster']),
+				line([null, null, null, 'fenster'], [0, 0, 0, 1])
+			],
+			kits
+		);
+		expect(combined.map((l) => [l.quantity, l.pins[1], l.choices[3]])).toEqual([
+			[2, 'halbdach', 0],
+			[2, null, 0],
+			[1, null, 1]
+		]);
+	});
+
+	it('drops lines of unknown kits', () => {
+		expect(combineLines([{ kitId: 'kohte', quantity: 1, choices: [], pins: [] }], kits)).toEqual(
+			[]
+		);
+	});
+
+	it('names pinned groups', () => {
+		const windows = {
+			...jurte.groups[3],
+			name: 'Fenster',
+			options: [
+				{ materialId: 'doppelfenster', unitValue: 2, priority: 0 },
+				...jurte.groups[3].options
+			]
+		};
+		const kit: Kit = { ...jurte, groups: [...jurte.groups.slice(0, 3), windows] };
+		const pins = [null, 'halbdach', null, 'fenster'];
+		expect(lineLabel({ kit, choices: [0, 0, 0, 1], pins }, nameOf)).toBe(
+			'Jurte (Dach: Jurtenhalbdach, Mittelstange: Einbein, Fenster: mit · Fensterplane)'
+		);
+		// Without windows, their pin doesn't count.
+		expect(lineLabel({ kit, choices: [0, 0, 0, 0], pins }, nameOf)).toBe(
+			'Jurte (Dach: Jurtenhalbdach, Mittelstange: Einbein, Fenster: ohne)'
+		);
 	});
 });
 
@@ -119,7 +221,12 @@ describe('describeShortage', () => {
 
 	it('lists the alternatives that could fill the missing units', () => {
 		expect(
-			describeShortage({ line: 0, groupIndex: 1, missingUnits: 5 }, jurte, label, nameOf)
+			describeShortage(
+				{ line: 0, groupIndex: 1, missingUnits: 5 },
+				{ kit: jurte, choices: [] },
+				label,
+				nameOf
+			)
 		).toBe(
 			'Jurte (Mittelstange: Dreibein, Fensterplane: ohne) – Dach: 5 Einheiten fehlen (2× Jurtenhalbdach oder 5× Kohtenblatt)'
 		);
@@ -127,8 +234,20 @@ describe('describeShortage', () => {
 
 	it('names the pieces of a single option', () => {
 		const shortage = (missingUnits: number) => ({ line: 0, groupIndex: 0, missingUnits });
-		expect(describeShortage(shortage(3), jurte, 'Kohte', nameOf)).toBe('Kohte: 3× Hering fehlen');
-		expect(describeShortage(shortage(1), jurte, 'Kohte', nameOf)).toBe('Kohte: 1× Hering fehlt');
+		const line = { kit: jurte, choices: [] };
+		expect(describeShortage(shortage(3), line, 'Kohte', nameOf)).toBe('Kohte: 3× Hering fehlen');
+		expect(describeShortage(shortage(1), line, 'Kohte', nameOf)).toBe('Kohte: 1× Hering fehlt');
+	});
+
+	it('names only the pinned option', () => {
+		const shortage = { line: 0, groupIndex: 1, missingUnits: 5 };
+		const line = (pin: string) => ({ kit: jurte, choices: [], pins: [null, pin] });
+		expect(describeShortage(shortage, line('halbdach'), 'Jurte', nameOf)).toBe(
+			'Jurte – Dach: 2× Jurtenhalbdach fehlen'
+		);
+		expect(
+			describeShortage({ ...shortage, missingUnits: 1 }, line('kohtenblatt'), 'Jurte', nameOf)
+		).toBe('Jurte – Dach: 1× Kohtenblatt fehlt');
 	});
 
 	it('names options for variants', () => {
@@ -149,7 +268,12 @@ describe('describeShortage', () => {
 		const optionName = (option: { materialId: string; variantId?: string | null }) =>
 			option.variantId ?? 'Seil (beliebig)';
 		expect(
-			describeShortage({ line: 0, groupIndex: 0, missingUnits: 2 }, kohte, 'Kohte', optionName)
+			describeShortage(
+				{ line: 0, groupIndex: 0, missingUnits: 2 },
+				{ kit: kohte, choices: [] },
+				'Kohte',
+				optionName
+			)
 		).toBe('Kohte – Abspannung: 2 Einheiten fehlen (2× Seil (beliebig) oder 2× Band 5 m)');
 	});
 });

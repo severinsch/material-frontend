@@ -2,22 +2,33 @@
 	import CheckIcon from '@lucide/svelte/icons/check';
 	import CopyIcon from '@lucide/svelte/icons/copy';
 	import CopyPlusIcon from '@lucide/svelte/icons/copy-plus';
+	import ListChecksIcon from '@lucide/svelte/icons/list-checks';
 	import MinusIcon from '@lucide/svelte/icons/minus';
 	import PencilIcon from '@lucide/svelte/icons/pencil';
 	import PlusIcon from '@lucide/svelte/icons/plus';
 	import PrinterIcon from '@lucide/svelte/icons/printer';
 	import Trash2Icon from '@lucide/svelte/icons/trash-2';
 	import { toast } from 'svelte-sonner';
+	import { SvelteSet } from 'svelte/reactivity';
 	import { afterNavigate, replaceState } from '$app/navigation';
 	import { page } from '$app/state';
 	import type { Kit, KitGroup, KitGroupAmount, KitGroupOption } from '#lib/api/index.js';
 	import { formatDate, today, variantName, variantsById } from '#lib/format.js';
-	import { allocate, needsOf, type MaterialNeed } from '#lib/kits/allocate.js';
+	import {
+		activePins,
+		allocate,
+		needsOf,
+		optionId,
+		sortedOptions,
+		unitsOf,
+		type MaterialNeed
+	} from '#lib/kits/allocate.js';
 	import {
 		byPlace,
 		combineLines,
 		describeShortage,
 		groupLabel,
+		hasAlternatives,
 		hasChoices,
 		lineLabel,
 		NO_LOCATION,
@@ -45,6 +56,8 @@
 	// svelte-ignore state_referenced_locally
 	let lines: PackingLine[] = $state(parseSelection(page.url.searchParams, data.kits));
 	let copied = $state(false);
+	/** Lines whose alternatives were opened ("Alternativen festlegen"); lines with pins show them anyway. */
+	const revealed = new SvelteSet<PackingLine>();
 
 	// The packing list lives in the URL (see parseSelection), so it survives reloads and can be shared as a link.
 	/** replaceState only works once the router has started. */
@@ -74,12 +87,7 @@
 	const kitCount = $derived(lines.reduce((sum, line) => sum + line.quantity, 0));
 
 	/** Identical lines combined, for the allocation, the summary and the printed list. */
-	const combined = $derived(
-		combineLines(lines).flatMap((line) => {
-			const kit = kits.get(line.kitId);
-			return kit ? [{ ...line, kit }] : [];
-		})
-	);
+	const combined = $derived(combineLines(lines, kits));
 	const labels = $derived(combined.map((line) => lineLabel(line, plainName)));
 
 	/** Usable pieces per variant id. */
@@ -117,7 +125,7 @@
 	});
 	const shortages = $derived(
 		allocation.shortages.map((shortage) =>
-			describeShortage(shortage, combined[shortage.line].kit, labels[shortage.line], optionName)
+			describeShortage(shortage, combined[shortage.line], labels[shortage.line], optionName)
 		)
 	);
 	/** Needs grouped by storage location for the printed list. */
@@ -217,16 +225,43 @@
 		return lines.filter((line) => line.kitId === kit.id);
 	}
 
-	/** Adds [kit] with the default choices, to the line that already has them if there is one. */
+	/** Whether [line] has the default choices and no pins that count. */
+	function isPlain(kit: Kit, line: PackingLine) {
+		return (
+			line.choices.every((choice) => choice === 0) && !activePins({ kit, ...line }).some(Boolean)
+		);
+	}
+
+	/** Adds [kit] with the default choices and no pins, to the line that already has them if there is one. */
 	function addKit(kit: Kit) {
-		const existing = linesOf(kit).find((line) => line.choices.every((choice) => choice === 0));
+		const existing = linesOf(kit).find((line) => isPlain(kit, line));
 		if (existing) existing.quantity++;
 		else lines.push(newLine(kit));
 	}
 
-	/** Adds a copy of [line] with quantity 1 below it, to choose other amounts for it. */
+	/** Adds a copy of [line] with quantity 1 below it, to choose other amounts or alternatives for it. */
 	function addCopy(line: PackingLine) {
-		lines.splice(lines.indexOf(line) + 1, 0, { ...line, quantity: 1, choices: [...line.choices] });
+		const copy = { ...line, quantity: 1, choices: [...line.choices], pins: [...line.pins] };
+		lines.splice(lines.indexOf(line) + 1, 0, copy);
+		if (revealed.has(line)) revealed.add(lines[lines.indexOf(line) + 1]);
+	}
+
+	/** The groups of [line] whose option can be pinned: several options, and packed (not "ohne"). */
+	function pinnableGroups(kit: Kit, line: PackingLine) {
+		return kit.groups.flatMap((group, index) =>
+			group.options.length > 1 && unitsOf({ kit, choices: line.choices }, index) > 0
+				? [{ group, index }]
+				: []
+		);
+	}
+
+	/** The select value of a group without a pin. */
+	const AUTOMATIC = 'automatisch';
+
+	function setPin(line: PackingLine, groupIndex: number, value: string) {
+		// Keeps the selects open when the last pin goes back to automatic.
+		revealed.add(line);
+		line.pins[groupIndex] = value === AUTOMATIC ? null : value;
 	}
 
 	function setQuantity(line: PackingLine, quantity: number) {
@@ -403,7 +438,7 @@
 								aria-label="{kit.name} zur Packliste hinzufügen"
 								onclick={() => addKit(kit)}><PlusIcon />Zur Packliste</Button
 							>
-						{:else if !choices}
+						{:else if !choices && kitLines.length === 1 && isPlain(kit, kitLines[0])}
 							{@render quantityButtons(kitLines[0], kit.name)}
 							<span class="text-sm text-muted-foreground">auf der Packliste</span>
 						{:else}
@@ -420,7 +455,7 @@
 								<span class="font-medium text-foreground tabular-nums">{quantity}</span> auf der
 								Packliste ·
 								<a href="#packliste" class="underline underline-offset-2"
-									>Ausführung in der Packliste wählen</a
+									>{choices ? 'Ausführung in der Packliste wählen' : 'in der Packliste anpassen'}</a
 								>
 							</span>
 						{/if}
@@ -493,7 +528,10 @@
 												<Trash2Icon />
 											</Button>
 										</div>
-										{#if hasChoices(kit)}
+										{#if hasChoices(kit) || hasAlternatives(kit)}
+											{@const pinnable = pinnableGroups(kit, line)}
+											{@const showPins =
+												revealed.has(line) || pinnable.some(({ index }) => line.pins[index])}
 											<div class="flex flex-wrap items-center gap-1.5">
 												{#each kit.groups as group, g (g)}
 													{#if group.amounts.length > 1}
@@ -517,14 +555,56 @@
 														</Select.Root>
 													{/if}
 												{/each}
+												{#if showPins}
+													{#each pinnable as { group, index } (index)}
+														{@const name = groupLabel(group, plainName)}
+														{@const pinned = group.options.find(
+															(option) => optionId(option) === line.pins[index]
+														)}
+														<Select.Root
+															type="single"
+															value={line.pins[index] ?? AUTOMATIC}
+															onValueChange={(value) => setPin(line, index, value)}
+														>
+															<Select.Trigger
+																size="sm"
+																aria-label="Alternative für {name} bei {kit.name}"
+															>
+																{name}: {pinned ? optionName(pinned) : 'automatisch'}
+															</Select.Trigger>
+															<Select.Content>
+																<Select.Item value={AUTOMATIC} label="Automatisch" />
+																{#each sortedOptions(group) as option (optionId(option))}
+																	<Select.Item
+																		value={optionId(option)}
+																		label="{optionName(option)} · {availableOf(option)} verfügbar"
+																	/>
+																{/each}
+															</Select.Content>
+														</Select.Root>
+													{/each}
+												{:else if pinnable.length > 0}
+													<Button
+														variant="ghost"
+														size="sm"
+														class="h-7 text-muted-foreground"
+														aria-label="Alternativen für {lineLabel(
+															{ kit, choices: line.choices },
+															plainName
+														)} festlegen"
+														onclick={() => revealed.add(line)}
+													>
+														<ListChecksIcon />Alternativen festlegen
+													</Button>
+												{/if}
 												<Button
 													variant="ghost"
 													size="sm"
 													class="h-7 text-muted-foreground"
-													aria-label="Weiteres {kit.name} mit anderer Ausführung"
+													aria-label="{kit.name} noch einmal mit anderer Auswahl hinzufügen"
 													onclick={() => addCopy(line)}
 												>
-													<CopyPlusIcon />Weitere mit anderer Ausführung
+													<CopyPlusIcon />Weitere mit anderer Auswahl
 												</Button>
 											</div>
 										{/if}
@@ -548,6 +628,12 @@
 							</ul>
 						</Card.Content>
 					</Card.Root>
+				{/if}
+				{#if allocation.approximate}
+					<p class="text-xs text-muted-foreground">
+						Sehr große Auswahl: Die Aufteilung wurde nicht vollständig geprüft, vielleicht fehlt
+						weniger.
+					</p>
 				{/if}
 
 				<Card.Root>

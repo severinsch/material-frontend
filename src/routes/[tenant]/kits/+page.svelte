@@ -637,12 +637,6 @@
 						</Card.Content>
 					</Card.Root>
 				{/if}
-				{#if allocation.approximate}
-					<p class="text-xs text-muted-foreground">
-						Sehr große Auswahl: Die Aufteilung wurde nicht vollständig geprüft, vielleicht fehlt
-						weniger.
-					</p>
-				{/if}
 
 				<Card.Root>
 					<Card.Header>

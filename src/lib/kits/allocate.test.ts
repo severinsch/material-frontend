@@ -49,8 +49,8 @@ function stockOf(stock: Record<string, number>) {
 	return [new Map(Object.entries(stock)), variants] as const;
 }
 
-function run(selections: KitSelection[], stock: Record<string, number>, budget?: number) {
-	return allocate(selections, ...stockOf(stock), budget);
+function run(selections: KitSelection[], stock: Record<string, number>) {
+	return allocate(selections, ...stockOf(stock));
 }
 
 function needs(selections: KitSelection[], stock: Record<string, number>) {
@@ -286,7 +286,7 @@ describe('exact allocation', () => {
 		const kohte = kit('kohte', group([['plane'], ['blatt']], 6));
 		const stock = { plane: 6, halbdach: 2, blatt: 0 };
 		const lines = [select(jurte), select(kohte)];
-		expect(run(lines, stock)).toMatchObject({ shortages: [], approximate: false });
+		expect(run(lines, stock).shortages).toEqual([]);
 		expect(required(lines, stock)).toEqual({ halbdach: 2, plane: 6 });
 	});
 
@@ -384,25 +384,8 @@ describe('exact allocation', () => {
 					missing: true
 				}
 			],
-			shortages: [{ line: 0, groupIndex: 0, missingUnits: 2 }],
-			approximate: false
+			shortages: [{ line: 0, groupIndex: 0, missingUnits: 2 }]
 		});
-	});
-
-	it('marks a greedy allocation approximate only if it has a shortage', () => {
-		const roof = kit('roof', group([['halbdach', 3], ['blatt']], 6));
-		expect(run([select(roof)], { halbdach: 2, blatt: 6 }, 0)).toMatchObject({
-			shortages: [],
-			approximate: false
-		});
-	});
-
-	it('falls back to the greedy allocation past the budget', () => {
-		const jurte = kit('jurte', group([['plane'], ['halbdach', 3]], 6));
-		const kohte = kit('kohte', group([['plane'], ['blatt']], 6));
-		const result = run([select(jurte), select(kohte)], { plane: 6, halbdach: 2, blatt: 0 }, 0);
-		expect(result.approximate).toBe(true);
-		expect(result.shortages).toEqual([{ line: 1, groupIndex: 0, missingUnits: 6 }]);
 	});
 });
 
@@ -543,10 +526,10 @@ describe('allocation of the demo kits', () => {
 		const start = performance.now();
 		const result = run(lines, times(3));
 		expect(performance.now() - start).toBeLessThan(50);
-		expect(result).toMatchObject({ shortages: [], approximate: false });
+		expect(result.shortages).toEqual([]);
 	});
 
-	it('searches a camp short of a few things exactly', () => {
+	it('searches a camp short of a few things quickly', () => {
 		const lines = [
 			select(jurte, 3, [0, 0, 0, 0, 1]),
 			select(jurte, 1, [0, 0, 0, 1]),
@@ -557,8 +540,9 @@ describe('allocation of the demo kits', () => {
 			select(jurte, 1, [0, 0, 0, 1, 1]),
 			select(ovaljurte, 2)
 		];
+		const start = performance.now();
 		const result = run(lines, times(3));
-		expect(result.approximate).toBe(false);
+		expect(performance.now() - start).toBeLessThan(200);
 		expect(result.shortages.length).toBeGreaterThan(0);
 	});
 
@@ -575,9 +559,8 @@ describe('allocation of the demo kits', () => {
 		];
 		const start = performance.now();
 		const result = run(lines, stock);
-		const elapsed = performance.now() - start;
-		expect(result.approximate).toBe(false);
-		expect(elapsed).toBeLessThan(200);
+		expect(performance.now() - start).toBeLessThan(200);
+		expect(result.shortages.length).toBeGreaterThan(0);
 	});
 });
 

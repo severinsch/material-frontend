@@ -230,24 +230,22 @@
 					{#if selecting}
 						<Table.Head class="w-8"><span class="sr-only">Auswahl</span></Table.Head>
 					{/if}
-					<Table.Head class="w-0 text-right"
-						>{@render sortable('available', 'Verfügbar')}</Table.Head
-					>
 					<Table.Head class="w-8"><span class="sr-only">Gegenstände</span></Table.Head>
 					<Table.Head>{@render sortable('name', 'Name')}</Table.Head>
+					<Table.Head class="text-right">{@render sortable('available', 'Verfügbar')}</Table.Head>
 					<Table.Head class="hidden md:table-cell"
 						>{@render sortable('category', 'Kategorie')}</Table.Head
 					>
 					<Table.Head class="hidden sm:table-cell"
 						>{@render sortable('location', 'Lagerort')}</Table.Head
 					>
+					<Table.Head class="hidden lg:table-cell">Erfassung</Table.Head>
 					<Table.Head class="hidden text-right sm:table-cell">
 						{@render sortable('damaged', 'Beschädigt')}
 					</Table.Head>
 					<Table.Head class="hidden text-right sm:table-cell">
 						{@render sortable('loaned', 'Ausgeliehen')}
 					</Table.Head>
-					<Table.Head class="hidden lg:table-cell">Erfassung</Table.Head>
 					<Table.Head class="w-20"><span class="sr-only">Aktionen</span></Table.Head>
 				</Table.Row>
 			</Table.Header>
@@ -271,7 +269,6 @@
 								</div>
 							</Table.Cell>
 						{/if}
-						<Table.Cell class="text-right tabular-nums">{availableNow(material)}</Table.Cell>
 						<Table.Cell class="pr-0">
 							{#if material.trackingType === 'INDIVIDUAL'}
 								<Button
@@ -304,20 +301,21 @@
 								<p class="text-sm text-muted-foreground sm:hidden">{locationOf(material)}</p>
 							{/if}
 						</Table.Cell>
+						<Table.Cell class="text-right tabular-nums">{availableNow(material)}</Table.Cell>
 						<Table.Cell class="hidden md:table-cell">
 							{#if material.category}<Badge variant="outline">{material.category}</Badge>{/if}
 						</Table.Cell>
 						<Table.Cell class="hidden whitespace-normal sm:table-cell">
 							{locationOf(material) || '—'}
 						</Table.Cell>
+						<Table.Cell class="hidden text-muted-foreground lg:table-cell">
+							{trackingTypeLabels[material.trackingType]}
+						</Table.Cell>
 						<Table.Cell class="hidden text-right tabular-nums sm:table-cell">
 							{material.damagedCount}
 						</Table.Cell>
 						<Table.Cell class="hidden text-right tabular-nums sm:table-cell">
 							{material.loanedCount}
-						</Table.Cell>
-						<Table.Cell class="hidden text-muted-foreground lg:table-cell">
-							{trackingTypeLabels[material.trackingType]}
 						</Table.Cell>
 						<Table.Cell class="text-right">
 							{#if canEdit}

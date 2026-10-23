@@ -244,11 +244,18 @@
 		else lines.push(newLine(kit));
 	}
 
-	/** Adds a copy of [line] with quantity 1 below it, to choose other amounts or alternatives for it. */
+	/**
+	 * Adds a copy of [line] with quantity 1 below it, to choose other amounts or alternatives for it. It keeps the
+	 * amounts but starts with automatic alternatives, like a new line.
+	 */
 	function addCopy(line: PackingLine) {
-		const copy = { ...line, quantity: 1, choices: [...line.choices], pins: [...line.pins] };
+		const copy = {
+			...line,
+			quantity: 1,
+			choices: [...line.choices],
+			pins: line.pins.map(() => null)
+		};
 		lines.splice(lines.indexOf(line) + 1, 0, copy);
-		if (revealed.has(line)) revealed.add(lines[lines.indexOf(line) + 1]);
 	}
 
 	/** The groups of [line] whose option can be pinned: several options, and packed (not "ohne"). */

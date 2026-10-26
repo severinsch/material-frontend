@@ -17,6 +17,7 @@
 	import { Checkbox } from '#lib/components/ui/checkbox/index.js';
 	import { Input } from '#lib/components/ui/input/index.js';
 	import * as Table from '#lib/components/ui/table/index.js';
+	import CategoryFilter from '#lib/components/CategoryFilter.svelte';
 	import ConfirmDelete from '#lib/components/ConfirmDelete.svelte';
 	import ItemTable from '#lib/components/ItemTable.svelte';
 	import LoanedToggle from '#lib/components/LoanedToggle.svelte';
@@ -33,7 +34,7 @@
 	type SortKey = 'name' | 'category' | 'location' | 'available' | 'damaged' | 'loaned';
 
 	let query = $state('');
-	let sort = $state<{ key: SortKey; descending: boolean }>({ key: 'name', descending: false });
+	let sort = $state<{ key: SortKey; descending: boolean }>({ key: 'category', descending: false });
 	const expanded = new SvelteSet<string>();
 	let materialDialog: MaterialDialog;
 	let mergeDialog: MergeDialog;
@@ -48,7 +49,23 @@
 	);
 	/** Only materials of the same tracking type can be merged. */
 	const selectableType = $derived(selected[0]?.trackingType);
+	/** The selected categories ('' for none); all if empty. */
+	const categories = new SvelteSet<string>();
+	/** Categories with their number of materials, by name, "Ohne Kategorie" last. */
+	const categoryCounts = $derived(
+		[
+			...Map.groupBy(data.materials, (material) => material.category ?? '')
+				.entries()
+				.map(([category, inCategory]): [string, number] => [category, inCategory.length])
+		].toSorted(([a], [b]) => categoryOrder(a, b))
+	);
+	/** Sorted by category, the materials are shown in sections per category; other columns sort them flat. */
+	const grouped = $derived(sort.key === 'category');
 	const columns = $derived(selecting ? 10 : 9);
+
+	function categoryOrder(a: string, b: string) {
+		return (a === '') !== (b === '') ? (a === '' ? 1 : -1) : a.localeCompare(b);
+	}
 
 	const itemsByMaterial = $derived(
 		data.items.reduce<Record<string, IndividualItem[]>>((byMaterial, item) => {
@@ -98,6 +115,7 @@
 		const value = sortValues[sort.key];
 		const direction = sort.descending ? -1 : 1;
 		return data.materials
+			.filter((material) => categories.size === 0 || categories.has(material.category ?? ''))
 			.filter((material) =>
 				[
 					material.name,
@@ -116,6 +134,19 @@
 				return order * direction || a.name.localeCompare(b.name);
 			});
 	});
+
+	/** The listed materials by category, in their order within each. */
+	const byCategory = $derived(
+		[...Map.groupBy(materials, (material) => material.category ?? '')].toSorted(
+			([a], [b]) => categoryOrder(a, b) * (sort.key === 'category' && sort.descending ? -1 : 1)
+		)
+	);
+
+	const emptyText = $derived(
+		query || categories.size > 0
+			? 'Keine passenden Materialien gefunden.'
+			: 'Noch keine Materialien.'
+	);
 
 	function sortBy(key: SortKey) {
 		sort = { key, descending: sort.key === key && !sort.descending };
@@ -155,6 +186,111 @@
 				/>{/if}
 		{/if}
 	</button>
+{/snippet}
+
+{#snippet materialRows(material: Material)}
+	{@const isOpen = expanded.has(material.id)}
+	<Table.Row>
+		{#if selecting}
+			{@const otherType = !!selectableType && material.trackingType !== selectableType}
+			<Table.Cell class="pr-0">
+				<div
+					class="flex size-8 items-center justify-center"
+					title={otherType ? 'Andere Erfassungsart als die Auswahl' : undefined}
+				>
+					<Checkbox
+						aria-label="{material.name} auswählen"
+						checked={selectedIds.includes(material.id)}
+						disabled={otherType}
+						onCheckedChange={(checked) => select(material, checked)}
+					/>
+				</div>
+			</Table.Cell>
+		{/if}
+		<Table.Cell class="pr-0">
+			{#if material.trackingType === 'INDIVIDUAL'}
+				<Button
+					variant="ghost"
+					size="icon-sm"
+					aria-label={isOpen
+						? `Gegenstände von ${material.name} ausblenden`
+						: `Gegenstände von ${material.name} anzeigen`}
+					aria-expanded={isOpen}
+					onclick={() => toggle(material.id)}
+				>
+					{#if isOpen}<ChevronDownIcon />{:else}<ChevronRightIcon />{/if}
+				</Button>
+			{/if}
+		</Table.Cell>
+		<Table.Cell class="whitespace-normal">
+			<a href={tenant.href(`/materials/${material.id}`)} class="font-medium hover:underline"
+				>{material.name}</a
+			>
+			{#if variantCounts(material)}
+				<p class="text-sm text-muted-foreground tabular-nums">
+					<span class="sr-only">Verfügbar je Variante:</span>
+					{variantCounts(material)}
+				</p>
+			{/if}
+			{#if material.description}
+				<p class="text-sm text-muted-foreground">{material.description}</p>
+			{/if}
+			{#if locationOf(material)}
+				<p class="text-sm text-muted-foreground sm:hidden">{locationOf(material)}</p>
+			{/if}
+		</Table.Cell>
+		<Table.Cell class="text-right tabular-nums">{availableNow(material)}</Table.Cell>
+		<Table.Cell class="hidden md:table-cell">
+			{#if material.category}<Badge variant="outline">{material.category}</Badge>{/if}
+		</Table.Cell>
+		<Table.Cell class="hidden whitespace-normal sm:table-cell">
+			{locationOf(material) || '—'}
+		</Table.Cell>
+		<Table.Cell class="hidden text-muted-foreground lg:table-cell">
+			{trackingTypeLabels[material.trackingType]}
+		</Table.Cell>
+		<Table.Cell class="hidden text-right tabular-nums sm:table-cell">
+			{material.damagedCount}
+		</Table.Cell>
+		<Table.Cell class="hidden text-right tabular-nums sm:table-cell">
+			{material.loanedCount}
+		</Table.Cell>
+		<Table.Cell class="text-right">
+			{#if canEdit}
+				<RowActions
+					name={material.name}
+					onedit={() => materialDialog.show(material)}
+					actions={[
+						{
+							label: 'Löschen',
+							icon: Trash2Icon,
+							destructive: true,
+							onselect: () => remove(material)
+						}
+					]}
+				/>
+			{/if}
+		</Table.Cell>
+	</Table.Row>
+	{#if isOpen && material.trackingType === 'INDIVIDUAL'}
+		<Table.Row class="hover:bg-transparent">
+			<Table.Cell colspan={columns} class="bg-muted/30 p-3 whitespace-normal sm:pl-10">
+				<ItemTable
+					{material}
+					items={itemsByMaterial[material.id] ?? []}
+					locations={data.locations}
+				/>
+			</Table.Cell>
+		</Table.Row>
+	{/if}
+{/snippet}
+
+{#snippet empty()}
+	<Table.Row>
+		<Table.Cell colspan={columns} class="py-8 text-center text-muted-foreground">
+			{emptyText}
+		</Table.Cell>
+	</Table.Row>
 {/snippet}
 
 <div class="space-y-4">
@@ -220,10 +356,12 @@
 				bind:value={query}
 			/>
 		</div>
+		<CategoryFilter counts={categoryCounts} selected={categories} />
 		<LoanedToggle />
 	</div>
 
-	<div class="rounded-md border">
+	<!-- The table container scrolls horizontally, which would keep the sticky headings inside it. -->
+	<div class="rounded-md border [&>[data-slot=table-container]]:overflow-visible">
 		<Table.Root>
 			<Table.Header>
 				<Table.Row>
@@ -250,108 +388,33 @@
 				</Table.Row>
 			</Table.Header>
 			<Table.Body>
-				{#each materials as material (material.id)}
-					{@const isOpen = expanded.has(material.id)}
-					<Table.Row>
-						{#if selecting}
-							{@const otherType = !!selectableType && material.trackingType !== selectableType}
-							<Table.Cell class="pr-0">
-								<div
-									class="flex size-8 items-center justify-center"
-									title={otherType ? 'Andere Erfassungsart als die Auswahl' : undefined}
-								>
-									<Checkbox
-										aria-label="{material.name} auswählen"
-										checked={selectedIds.includes(material.id)}
-										disabled={otherType}
-										onCheckedChange={(checked) => select(material, checked)}
-									/>
-								</div>
-							</Table.Cell>
-						{/if}
-						<Table.Cell class="pr-0">
-							{#if material.trackingType === 'INDIVIDUAL'}
-								<Button
-									variant="ghost"
-									size="icon-sm"
-									aria-label={isOpen
-										? `Gegenstände von ${material.name} ausblenden`
-										: `Gegenstände von ${material.name} anzeigen`}
-									aria-expanded={isOpen}
-									onclick={() => toggle(material.id)}
-								>
-									{#if isOpen}<ChevronDownIcon />{:else}<ChevronRightIcon />{/if}
-								</Button>
-							{/if}
-						</Table.Cell>
-						<Table.Cell class="whitespace-normal">
-							<a href={tenant.href(`/materials/${material.id}`)} class="font-medium hover:underline"
-								>{material.name}</a
-							>
-							{#if variantCounts(material)}
-								<p class="text-sm text-muted-foreground tabular-nums">
-									<span class="sr-only">Verfügbar je Variante:</span>
-									{variantCounts(material)}
-								</p>
-							{/if}
-							{#if material.description}
-								<p class="text-sm text-muted-foreground">{material.description}</p>
-							{/if}
-							{#if locationOf(material)}
-								<p class="text-sm text-muted-foreground sm:hidden">{locationOf(material)}</p>
-							{/if}
-						</Table.Cell>
-						<Table.Cell class="text-right tabular-nums">{availableNow(material)}</Table.Cell>
-						<Table.Cell class="hidden md:table-cell">
-							{#if material.category}<Badge variant="outline">{material.category}</Badge>{/if}
-						</Table.Cell>
-						<Table.Cell class="hidden whitespace-normal sm:table-cell">
-							{locationOf(material) || '—'}
-						</Table.Cell>
-						<Table.Cell class="hidden text-muted-foreground lg:table-cell">
-							{trackingTypeLabels[material.trackingType]}
-						</Table.Cell>
-						<Table.Cell class="hidden text-right tabular-nums sm:table-cell">
-							{material.damagedCount}
-						</Table.Cell>
-						<Table.Cell class="hidden text-right tabular-nums sm:table-cell">
-							{material.loanedCount}
-						</Table.Cell>
-						<Table.Cell class="text-right">
-							{#if canEdit}
-								<RowActions
-									name={material.name}
-									onedit={() => materialDialog.show(material)}
-									actions={[
-										{
-											label: 'Löschen',
-											icon: Trash2Icon,
-											destructive: true,
-											onselect: () => remove(material)
-										}
-									]}
-								/>
-							{/if}
-						</Table.Cell>
-					</Table.Row>
-					{#if isOpen && material.trackingType === 'INDIVIDUAL'}
+				{#if grouped}
+					{#each byCategory as [category, inCategory] (category)}
+						<!-- Sticks below the app header, so the category stays in view while scrolling through it. -->
 						<Table.Row class="hover:bg-transparent">
-							<Table.Cell colspan={columns} class="bg-muted/30 p-3 whitespace-normal sm:pl-10">
-								<ItemTable
-									{material}
-									items={itemsByMaterial[material.id] ?? []}
-									locations={data.locations}
-								/>
+							<Table.Cell
+								colspan={columns}
+								class="sticky top-14 z-10 border-b bg-background/95 py-2 font-semibold backdrop-blur"
+							>
+								{category || 'Ohne Kategorie'}
+								<span class="ml-1 font-normal text-muted-foreground tabular-nums"
+									>{inCategory.length}</span
+								>
 							</Table.Cell>
 						</Table.Row>
-					{/if}
+						{#each inCategory as material (material.id)}
+							{@render materialRows(material)}
+						{/each}
+					{:else}
+						{@render empty()}
+					{/each}
 				{:else}
-					<Table.Row>
-						<Table.Cell colspan={columns} class="py-8 text-center text-muted-foreground">
-							{query ? `Keine Materialien zu „${query}“ gefunden.` : 'Noch keine Materialien.'}
-						</Table.Cell>
-					</Table.Row>
-				{/each}
+					{#each materials as material (material.id)}
+						{@render materialRows(material)}
+					{:else}
+						{@render empty()}
+					{/each}
+				{/if}
 			</Table.Body>
 		</Table.Root>
 	</div>

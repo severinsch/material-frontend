@@ -13,6 +13,7 @@
 	import TenantSwitcher from '#lib/components/TenantSwitcher.svelte';
 	import ThemeToggle from '#lib/components/ThemeToggle.svelte';
 	import UserMenu from '#lib/components/UserMenu.svelte';
+	import { Separator } from '#lib/components/ui/separator/index.js';
 	import { Toaster } from '#lib/components/ui/sonner/index.js';
 
 	let { data, children } = $props();
@@ -50,15 +51,22 @@
 <div class="min-h-screen bg-background">
 	<header class="sticky top-0 z-50 border-b bg-background/95 backdrop-blur print:hidden">
 		<div class="container mx-auto flex h-14 items-center gap-4 px-4">
-			<a
-				href={tenant ? `/${tenant.slug}` : '/'}
-				class="flex shrink-0 items-center gap-2 font-semibold"
-			>
-				<img src="/logo.png" alt="" class="size-6" />
-				<span class={tenant ? 'sr-only xl:not-sr-only' : ''}>Materialverwaltung</span>
-			</a>
-			{#if tenant && user}
-				<TenantSwitcher tenants={user.tenants} current={tenant} />
+			<!-- The Stamm reads as the context of the pages, like a breadcrumb after the logo, not as one of them. -->
+			<div class="flex min-w-0 items-center gap-2">
+				<a
+					href={tenant ? `/${tenant.slug}` : '/'}
+					class="flex shrink-0 items-center gap-2 font-semibold"
+				>
+					<img src="/logo.png" alt="" class="size-6" />
+					<span class={tenant ? 'sr-only xl:not-sr-only' : ''}>Materialverwaltung</span>
+				</a>
+				{#if tenant && user}
+					<span aria-hidden="true" class="text-lg font-light text-muted-foreground/50">/</span>
+					<TenantSwitcher tenants={user.tenants} current={tenant} />
+				{/if}
+			</div>
+			{#if links.length > 0}
+				<Separator orientation="vertical" class="hidden sm:block" />
 			{/if}
 			<nav aria-label="Hauptnavigation" class="hidden items-center gap-4 text-sm sm:flex">
 				{#each links as link (link.href)}

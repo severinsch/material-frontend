@@ -44,7 +44,9 @@
 	import { Badge } from '#lib/components/ui/badge/index.js';
 	import { Button } from '#lib/components/ui/button/index.js';
 	import * as Card from '#lib/components/ui/card/index.js';
+	import { Label } from '#lib/components/ui/label/index.js';
 	import * as Select from '#lib/components/ui/select/index.js';
+	import { Switch } from '#lib/components/ui/switch/index.js';
 	import LoanedToggle from '#lib/components/LoanedToggle.svelte';
 
 	let { data } = $props();
@@ -56,6 +58,15 @@
 	// svelte-ignore state_referenced_locally
 	let lines: PackingLine[] = $state(parseSelection(page.url.searchParams, data.kits));
 	let copied = $state(false);
+	/** Whether the needed materials list the pieces per line of the packing list. */
+	let showBreakdown = $state(false);
+	/** Groups of the kit cards (`<kit id>/<group index>`) whose less preferred options are shown. */
+	const openGroups = new SvelteSet<string>();
+
+	function toggleGroup(key: string) {
+		if (!openGroups.delete(key)) openGroups.add(key);
+	}
+
 	/** Lines whose alternatives were opened ("Alternativen festlegen"); lines with pins show them anyway. */
 	const revealed = new SvelteSet<PackingLine>();
 
@@ -419,8 +430,15 @@
 										{/if}
 									</div>
 									{#if !single}
+										{@const key = `${kit.id}/${index}`}
+										{@const sorted = sortedOptions(group)}
+										<!-- Many alternatives in every card would clutter them, so only the most preferred ones show. -->
+										{@const preferred = sorted.filter(
+											(option) => option.priority === sorted[0].priority
+										)}
+										{@const hidden = sorted.length - preferred.length}
 										<ul class="mt-1 ml-1 space-y-0.5 border-l pl-2 text-xs">
-											{#each group.options.toSorted((a, b) => a.priority - b.priority) as option, rank (`${option.materialId}/${option.variantId}`)}
+											{#each openGroups.has(key) ? sorted : preferred as option, rank (optionId(option))}
 												<li class="flex items-center gap-1.5">
 													<span class="flex-1">
 														{#if rank > 0}<span class="text-muted-foreground">oder</span>{/if}
@@ -443,6 +461,17 @@
 												</li>
 											{/each}
 										</ul>
+										{#if hidden > 0}
+											<button
+												class="mt-0.5 ml-3.5 text-xs text-muted-foreground underline-offset-2 hover:text-foreground hover:underline"
+												aria-expanded={openGroups.has(key)}
+												onclick={() => toggleGroup(key)}
+											>
+												{openGroups.has(key)
+													? 'Weniger anzeigen'
+													: `+${hidden} ${hidden === 1 ? 'Alternative' : 'Alternativen'}`}
+											</button>
+										{/if}
 									{/if}
 								</li>
 							{/each}
@@ -470,11 +499,7 @@
 								<PlusIcon />
 							</Button>
 							<span class="text-sm text-muted-foreground">
-								<span class="font-medium text-foreground tabular-nums">{quantity}</span> auf der
-								Packliste ·
-								<a href="#packliste" class="underline underline-offset-2"
-									>{choices ? 'Ausführung in der Packliste wählen' : 'in der Packliste anpassen'}</a
-								>
+								<span class="font-medium text-foreground tabular-nums">{quantity}</span> auf der Packliste
 							</span>
 						{/if}
 					</Card.Footer>
@@ -648,6 +673,12 @@
 				<Card.Root>
 					<Card.Header>
 						<Card.Title>Benötigte Materialien</Card.Title>
+						{#if needs.some((need) => need.byLine.length > 1)}
+							<Card.Action class="flex items-center gap-2">
+								<Switch id="show-breakdown" bind:checked={showBreakdown} />
+								<Label for="show-breakdown" class="text-xs font-normal">Je Set</Label>
+							</Card.Action>
+						{/if}
 					</Card.Header>
 					<Card.Content>
 						<ul class="space-y-2 text-sm">
@@ -665,12 +696,16 @@
 									</div>
 									<p class="text-xs text-muted-foreground">
 										{[need.place.location, need.place.detail].filter(Boolean).join(': ')}
-										{#if need.byLine.length > 1}
-											· {need.byLine
-												.map((part) => `${part.pieces}× für ${labels[part.line]}`)
-												.join(', ')}
-										{/if}
 									</p>
+									{#if showBreakdown && need.byLine.length > 1}
+										<ul class="mt-0.5 ml-1 border-l pl-2 text-xs text-muted-foreground">
+											{#each need.byLine as part (part.line)}
+												<li>
+													<span class="tabular-nums">{part.pieces}×</span> für {labels[part.line]}
+												</li>
+											{/each}
+										</ul>
+									{/if}
 								</li>
 							{/each}
 						</ul>

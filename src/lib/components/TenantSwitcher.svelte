@@ -15,7 +15,7 @@
 				<Button
 					{...props}
 					variant="ghost"
-					class="max-w-48 px-2"
+					class="max-w-48 px-2 font-semibold"
 					aria-label="Stamm wechseln, aktuell {current.name}"
 				>
 					<span class="truncate">{current.name}</span>
@@ -41,5 +41,5 @@
 		</DropdownMenu.Content>
 	</DropdownMenu.Root>
 {:else}
-	<span class="truncate px-2 text-sm text-muted-foreground">{current.name}</span>
+	<span class="truncate text-sm font-semibold">{current.name}</span>
 {/if}

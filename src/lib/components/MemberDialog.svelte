@@ -41,17 +41,22 @@
 			};
 			return mutate(
 				api.PUT('/members/{userId}', { params: { path: { userId: member.userId } }, body }),
-				`${form.displayName} gespeichert`
+				(saved) => `${saved.displayName} gespeichert`
 			);
 		}
-		return mutate(api.POST('/members', { body: form }), `Konto für ${form.displayName} angelegt`, {
-			onSuccess: (created) => oncreated(created.member, created.setupLink)
-		});
+		return mutate(
+			api.POST('/members', { body: form }),
+			(created) => `Konto für ${created.member.displayName} angelegt`,
+			{
+				onSuccess: (created) => oncreated(created.member, created.setupLink)
+			}
+		);
 	}
 </script>
 
 <FormDialog
 	bind:open
+	values={form}
 	title={member ? `${member.displayName} bearbeiten` : 'Konto anlegen'}
 	description={member
 		? undefined

@@ -39,6 +39,8 @@ export type SetupInfo = Schemas['SetupInfo'];
 export type Member = Schemas['Member'];
 export type Tenant = Schemas['Tenant'];
 export type User = Schemas['User'];
+/** Error codes of API errors that clients handle beyond showing the message, e.g. `ARCHIVE_INSTEAD`. */
+export type ErrorCode = NonNullable<Schemas['ErrorResponse']['code']>;
 
 type TenantPrefix = '/tenants/{tenantId}';
 
@@ -109,12 +111,14 @@ export const api = createApi();
 
 type ApiResult<T> = { data?: T; error?: unknown; response: Response };
 
-/** The response data, or an `HttpError` with the API's error message (rendered by `+error.svelte` in loads). */
+/**
+ * The response data, or an `HttpError` with the API's error message and code (rendered by `+error.svelte` in loads).
+ */
 export async function unwrap<T>(request: Promise<ApiResult<T>>): Promise<T> {
 	const { data, error: body, response } = await request;
 	if (!response.ok) {
-		const message = (body as { message?: string } | undefined)?.message;
-		error(response.status, message ?? 'Die Anfrage ist fehlgeschlagen.');
+		const { message, code } = (body ?? {}) as Partial<Schemas['ErrorResponse']>;
+		error(response.status, message ?? 'Die Anfrage ist fehlgeschlagen.', code ? { code } : {});
 	}
 	return data as T;
 }
@@ -126,17 +130,23 @@ export interface MutateOptions<T> {
 	undo?: () => Promise<ApiResult<unknown>>;
 	/** Runs with the response data before the page data is reloaded, e.g. to show a created setup link. */
 	onSuccess?: (data: T) => void;
+	/**
+	 * Handles an error of the API (other than an expired session) instead of the error toast, e.g. one with a `code`.
+	 * Returns whether it did; if not, the toast is shown as usual.
+	 */
+	onError?: (error: App.Error, status: number) => boolean;
 }
 
 /**
  * Runs a change, reports the outcome as a toast and reloads the page data (or navigates, see [MutateOptions]).
+ * [success] can be built from the response, e.g. to show a name as the API saved it (trimmed).
  * Returns whether it succeeded. If the session expired, the page stays as it is (e.g. with an open dialog) and the
  * toast offers to log in again in a new tab.
  */
 export async function mutate<T>(
 	request: Promise<ApiResult<T>>,
-	success: string,
-	{ redirectTo, undo, onSuccess }: MutateOptions<T> = {}
+	success: string | ((data: T) => string),
+	{ redirectTo, undo, onSuccess, onError }: MutateOptions<T> = {}
 ): Promise<boolean> {
 	let data: T;
 	try {
@@ -148,12 +158,12 @@ export async function mutate<T>(
 				duration: Infinity,
 				action: { label: 'Anmelden', onClick: () => window.open(loginPath(), '_blank') }
 			});
-		} else {
+		} else if (!(isHttpError(e) && onError?.(e.body, e.status))) {
 			toast.error(isHttpError(e) ? e.body.message : 'Die Anfrage ist fehlgeschlagen.');
 		}
 		return false;
 	}
-	toast.success(success, {
+	toast.success(typeof success === 'string' ? success : success(data), {
 		action: undo && {
 			label: 'Rückgängig',
 			onClick: () => void mutate(undo(), 'Rückgängig gemacht')

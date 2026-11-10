@@ -1,5 +1,5 @@
 <script lang="ts">
-	import ArchiveIcon from '@lucide/svelte/icons/archive';
+	import PackageXIcon from '@lucide/svelte/icons/package-x';
 	import PlusIcon from '@lucide/svelte/icons/plus';
 	import Trash2Icon from '@lucide/svelte/icons/trash-2';
 	import TriangleAlertIcon from '@lucide/svelte/icons/triangle-alert';
@@ -11,6 +11,7 @@
 		type StorageLocation
 	} from '#lib/api/index.js';
 	import { conditionLabels, formatDate, itemName, statusLabels, variantOf } from '#lib/format.js';
+	import { isRetired, retiredToggleLabel, visibleItems } from '#lib/items.js';
 	import { availableNow } from '#lib/settings.svelte.js';
 	import { getTenant } from '#lib/tenant.js';
 	import { Badge } from '#lib/components/ui/badge/index.js';
@@ -28,20 +29,31 @@
 	let {
 		material,
 		items,
-		locations
+		locations,
+		highlighted
 	}: {
 		material: IndividualMaterial;
 		/** The material's items, of all its variants. */
 		items: IndividualItem[];
 		locations: StorageLocation[];
+		/** Ids of items to point out, e.g. found by a search; they are shown even if retired. */
+		highlighted?: ReadonlySet<string>;
 	} = $props();
+
+	/** Archived materials get no new items. */
+	const canAdd = $derived(canEdit && !material.archivedAt);
+	/** Whether decommissioned and lost items are listed; they are hidden by default, except search hits. */
+	let showRetired = $state(false);
+	const visibility = $derived(visibleItems(items, showRetired, highlighted));
 
 	let itemDialog: ItemDialog;
 	let damageDialog: DamageDialog;
 	let confirmDelete: ConfirmDelete;
 
 	const sortedItems = $derived(
-		items.toSorted((a, b) => a.identifier.localeCompare(b.identifier, undefined, { numeric: true }))
+		visibility.visible.toSorted((a, b) =>
+			a.identifier.localeCompare(b.identifier, undefined, { numeric: true })
+		)
 	);
 	/**
 	 * With several variants, the items are grouped by variant (Material → Variante → Gegenstände), in the order of
@@ -100,10 +112,16 @@
 {/snippet}
 
 {#snippet itemRow(item: IndividualItem)}
-	{@const retired = item.status === 'LOST' || item.status === 'DECOMMISSIONED'}
-	<Table.Row class={retired ? 'text-muted-foreground' : ''}>
+	<Table.Row class={isRetired(item) ? 'text-muted-foreground' : ''}>
 		<Table.Cell class={['whitespace-normal', several && 'sm:pl-6']}>
-			<span class="font-medium">{item.identifier}</span>
+			{#if highlighted?.has(item.id)}
+				<mark
+					class="-mx-1 rounded-sm bg-amber-200/70 px-1 font-medium text-inherit dark:bg-amber-400/30"
+					>{item.identifier}</mark
+				>
+			{:else}
+				<span class="font-medium">{item.identifier}</span>
+			{/if}
 			{#if item.onLoan}<Badge variant="secondary">ausgeliehen</Badge>{/if}
 			<!-- On phones the other columns are hidden and shown here instead. -->
 			<div class="mt-1 flex flex-wrap items-center gap-x-2 gap-y-1 text-sm sm:hidden">
@@ -139,7 +157,7 @@
 						: [
 								{
 									label: 'Ausmustern',
-									icon: ArchiveIcon,
+									icon: PackageXIcon,
 									onselect: () => setStatus(item, 'DECOMMISSIONED')
 								}
 							]),
@@ -188,7 +206,7 @@
 											>· {availableNow(variant)} verfügbar</span
 										>
 									</h3>
-									{#if canEdit}
+									{#if canAdd}
 										<Button
 											variant="ghost"
 											size="sm"
@@ -207,7 +225,9 @@
 						{:else}
 							<Table.Row>
 								<Table.Cell colspan={6} class="text-muted-foreground sm:pl-6">
-									Noch keine Gegenstände.
+									{items.some((item) => item.variantId === variant.id)
+										? 'Nur ausgemusterte oder verlorene Gegenstände.'
+										: 'Noch keine Gegenstände.'}
 								</Table.Cell>
 							</Table.Row>
 						{/each}
@@ -218,8 +238,14 @@
 					{:else}
 						<Table.Row>
 							<Table.Cell colspan={6} class="py-6 text-center whitespace-normal">
-								<p class="text-muted-foreground">{material.name} hat noch keine Gegenstände.</p>
-								{#if canEdit}<div class="mt-3">{@render addButton('default')}</div>{/if}
+								{#if items.length > 0}
+									<p class="text-muted-foreground">
+										{material.name} hat nur ausgemusterte oder verlorene Gegenstände.
+									</p>
+								{:else}
+									<p class="text-muted-foreground">{material.name} hat noch keine Gegenstände.</p>
+									{#if canAdd}<div class="mt-3">{@render addButton('default')}</div>{/if}
+								{/if}
 							</Table.Cell>
 						</Table.Row>
 					{/each}
@@ -227,8 +253,22 @@
 			</Table.Body>
 		</Table.Root>
 	</div>
-	{#if canEdit && items.length > 0}
-		{@render addButton('outline')}
+	{#if (canAdd && items.length > 0) || visibility.canToggle}
+		<div class="flex flex-wrap items-center gap-x-4 gap-y-2">
+			{#if canAdd && items.length > 0}
+				{@render addButton('outline')}
+			{/if}
+			{#if visibility.canToggle}
+				<Button
+					variant="link"
+					size="sm"
+					class="h-auto p-0 text-muted-foreground pointer-coarse:min-h-11"
+					onclick={() => (showRetired = !showRetired)}
+				>
+					{retiredToggleLabel(visibility, showRetired)}
+				</Button>
+			{/if}
+		</div>
 	{/if}
 </div>
 

@@ -76,6 +76,7 @@
 
 <FormDialog
 	bind:open
+	values={{ form, changeStatus }}
 	title={id ? `Schadensmeldung zu ${itemName} bearbeiten` : `Schaden an ${itemName} melden`}
 	submitLabel={id ? 'Speichern' : 'Melden'}
 	onsubmit={save}

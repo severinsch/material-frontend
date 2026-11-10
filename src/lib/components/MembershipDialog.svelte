@@ -45,7 +45,12 @@
 	}
 </script>
 
-<FormDialog bind:open title="{user?.displayName} zu einem Stamm hinzufügen" onsubmit={save}>
+<FormDialog
+	bind:open
+	values={form}
+	title="{user?.displayName} zu einem Stamm hinzufügen"
+	onsubmit={save}
+>
 	{#if options.length === 0}
 		<p class="text-sm text-muted-foreground">{user?.displayName} gehört schon zu allen Stämmen.</p>
 	{:else}

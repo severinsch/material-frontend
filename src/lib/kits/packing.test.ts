@@ -114,6 +114,27 @@ describe('selection in the URL', () => {
 		expect(parseSelection(params, [kit])[0].pins).toEqual([id]);
 	});
 
+	it('ignores pins of groups packed without', () => {
+		const kit: Kit = {
+			...jurte,
+			groups: [
+				{
+					amounts: [
+						{ label: 'ohne', requiredUnits: 0 },
+						{ label: 'mit', requiredUnits: 8 }
+					],
+					options: jurte.groups[1].options
+				}
+			]
+		};
+		expect(parseSelection(new URLSearchParams('kit=jurte*1**0-halbdach'), [kit])[0].pins).toEqual([
+			null
+		]);
+		expect(
+			parseSelection(new URLSearchParams('kit=jurte*1*0-1*0-halbdach'), [kit])[0].pins
+		).toEqual(['halbdach']);
+	});
+
 	it('ignores unknown pins and pins of groups without alternatives', () => {
 		const params = new URLSearchParams('kit=jurte*1**0-hering.1-geist.x-halbdach.9-halbdach.1');
 		expect(parseSelection(params, [jurte])[0].pins).toEqual([null, null, null, null]);

@@ -16,6 +16,7 @@
 
 	const tenant = getTenant();
 	const api = $derived(tenant.api);
+	/** Editors manage all loans, others their own. */
 	const canEdit = $derived(tenant.can('EDIT'));
 
 	let loanDialog: LoanDialog;
@@ -29,9 +30,8 @@
 		const client = api;
 		const setReturnedAt = (returnedAt: string | null) =>
 			client.PUT('/loans/{id}', { params: { path: { id } }, body: { ...loan, returnedAt } });
-		// Only editors can reopen a returned loan.
 		return mutate(setReturnedAt(today()), `${loan.borrower} hat alles zurückgegeben`, {
-			undo: canEdit ? () => setReturnedAt(null) : undefined
+			undo: () => setReturnedAt(null)
 		});
 	}
 
@@ -133,8 +133,8 @@
 											}
 										]}
 									/>
-								{:else if !loan.returnedAt}
-									<!-- Others can change their own loans until they are returned. -->
+								{:else}
+									<!-- Others can change their own loans. -->
 									<RowActions
 										name="Ausleihe an {loan.borrower}"
 										onedit={() => loanDialog.show(loan)}

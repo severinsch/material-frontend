@@ -31,7 +31,7 @@
 	}
 </script>
 
-<FormDialog bind:open title="{user?.displayName} bearbeiten" onsubmit={save}>
+<FormDialog bind:open values={form} title="{user?.displayName} bearbeiten" onsubmit={save}>
 	<Field label="Name" id="user-name">
 		<Input id="user-name" bind:value={form.displayName} required maxlength={255} />
 	</Field>

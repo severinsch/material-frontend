@@ -55,6 +55,17 @@ describe('loanContents', () => {
 		);
 	});
 
+	it('marks archived materials', () => {
+		const archived = variantsById([
+			{ ...material('hering', 'Hering'), archivedAt: '2026-01-01T00:00:00Z' },
+			{ ...material('fenster', 'Jurtenfenster'), archivedAt: '2026-01-01T00:00:00Z' }
+		]);
+		const loan = { itemIds: ['f3'], materials: [{ variantId: 'hering', quantity: 30 }] };
+		expect(loanContents(loan, archived, items)).toBe(
+			'30× Hering (archiviert), 1× Jurtenfenster (archiviert: 3)'
+		);
+	});
+
 	it("counts items it doesn't know", () => {
 		expect(loanContents({ itemIds: ['f3', 'gone'], materials: [] }, variants, items)).toBe(
 			'1× Jurtenfenster (3), 1× unbekannter Gegenstand'

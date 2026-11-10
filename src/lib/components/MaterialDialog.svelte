@@ -5,12 +5,12 @@
 	import {
 		mutate,
 		type BulkVariant,
-		type IndividualItem,
 		type Material,
 		type NewMaterial,
 		type StorageLocation,
 		type Variant
 	} from '#lib/api/index.js';
+	import { categoriesOf, suggestCategories } from '#lib/categories.js';
 	import {
 		locationOptions,
 		optionsOf,
@@ -28,8 +28,8 @@
 	import FormDialog from './FormDialog.svelte';
 	import SelectField from './SelectField.svelte';
 
-	/** [items] are the items of the edited material (or more), since variants with items can't be removed. */
-	let { locations, items }: { locations: StorageLocation[]; items: IndividualItem[] } = $props();
+	/** [materials] are the tenant's materials, whose categories are suggested. */
+	let { materials, locations }: { materials: Material[]; locations: StorageLocation[] } = $props();
 
 	const tenant = getTenant();
 	const api = $derived(tenant.api);
@@ -56,10 +56,10 @@
 	 */
 	const cards = $derived(bulk && !sharedLocation);
 
+	const categories = $derived(categoriesOf(materials));
+	const categorySuggestions = $derived(suggestCategories(categories, form.category));
+
 	const variantsError = $derived(variantNamesError(form.variants.map((variant) => variant.name)));
-	/** Variants with items, in any status, which the API refuses to remove. */
-	const variantsWithItems = $derived(new Set(items.map((item) => item.variantId)));
-	const hasItems = (variant: VariantForm) => !!variant.id && variantsWithItems.has(variant.id);
 
 	/** The form of [variant], or of a new one stored at [location]. */
 	function variantFormOf(
@@ -140,8 +140,8 @@
 	}
 
 	/**
-	 * Removes a variant, asking first if it has stock, e.g. "Variante 15 m mit 4 Stück entfernen?" Variants with items
-	 * can't be removed (see [hasItems]).
+	 * Removes a variant, asking first if it has stock, e.g. "Variante 15 m mit 4 Stück entfernen?" The API refuses to
+	 * remove variants with items.
 	 */
 	function removeVariant(variant: VariantForm) {
 		const remove = () => {
@@ -163,11 +163,6 @@
 				description: 'Die Variante und ihr Bestand werden beim Speichern gelöscht.'
 			}
 		);
-	}
-
-	function restoreVariant(variant: VariantForm) {
-		form.removed.splice(form.removed.indexOf(variant), 1);
-		form.variants.push(variant);
 	}
 
 	/**
@@ -192,9 +187,8 @@
 		form.locationPerVariant = perVariant;
 	}
 
-	async function save() {
-		submitted = true;
-		if (variantsError) return false;
+	/** The material as it is sent; also what tells whether anything was changed in the dialog. */
+	const body = $derived.by((): NewMaterial => {
 		const common = {
 			name: form.name,
 			category: orNull(form.category),
@@ -202,37 +196,41 @@
 			removedVariantIds: id ? form.removed.map((variant) => variant.id!) : []
 		};
 		const location = (variant: VariantForm) => (sharedLocation ? form : variant);
-		const body: NewMaterial =
-			form.trackingType === 'BULK'
-				? {
-						...common,
-						trackingType: 'BULK',
-						variants: form.variants.map((variant) => ({
-							id: variant.id,
-							name: orNull(variant.name),
-							availableCount: variant.availableCount,
-							damagedCount: variant.damagedCount,
-							storageLocationId: orNull(location(variant).storageLocationId),
-							locationDetail: orNull(location(variant).locationDetail),
-							expectedAvailableCount: variant.expectedAvailableCount
-						}))
-					}
-				: {
-						...common,
-						trackingType: 'INDIVIDUAL',
-						variants: form.variants.map((variant) => ({
-							id: variant.id,
-							name: orNull(variant.name)
-						}))
-					};
+		return form.trackingType === 'BULK'
+			? {
+					...common,
+					trackingType: 'BULK',
+					variants: form.variants.map((variant) => ({
+						id: variant.id,
+						name: orNull(variant.name),
+						availableCount: variant.availableCount,
+						damagedCount: variant.damagedCount,
+						storageLocationId: orNull(location(variant).storageLocationId),
+						locationDetail: orNull(location(variant).locationDetail),
+						expectedAvailableCount: variant.expectedAvailableCount
+					}))
+				}
+			: {
+					...common,
+					trackingType: 'INDIVIDUAL',
+					variants: form.variants.map((variant) => ({
+						id: variant.id,
+						name: orNull(variant.name)
+					}))
+				};
+	});
+
+	async function save() {
+		submitted = true;
+		if (variantsError) return false;
 		if (id) {
 			return mutate(
 				api.PUT('/materials/{id}', { params: { path: { id } }, body }),
-				`${form.name} gespeichert`
+				(saved) => `${saved.name} gespeichert`
 			);
 		}
 		// Individual materials need items next, which are added on the material's page.
-		return mutate(api.POST('/materials', { body }), `${form.name} angelegt`, {
+		return mutate(api.POST('/materials', { body }), (created) => `${created.name} angelegt`, {
 			redirectTo:
 				body.trackingType === 'INDIVIDUAL'
 					? (created) => tenant.href(`/materials/${created.id}`)
@@ -264,6 +262,7 @@
 
 <FormDialog
 	bind:open
+	values={body}
 	title={id ? `${savedName} bearbeiten` : 'Material anlegen'}
 	submitLabel={id ? 'Speichern' : 'Anlegen'}
 	class={listed ? 'sm:max-w-lg' : undefined}
@@ -286,7 +285,30 @@
 		</p>
 	{/if}
 	<Field label="Kategorie" id="material-category">
-		<Input id="material-category" bind:value={form.category} maxlength={100} />
+		<Input id="material-category" bind:value={form.category} maxlength={100} autocomplete="off" />
+		<!-- Existing categories as buttons rather than a datalist, which phones show inconsistently: tapping one
+		     avoids near-duplicates like "Zelt", "zelte" and "Zelte", which become separate sections in the list. -->
+		{#if categorySuggestions.length > 0}
+			<div
+				class="flex flex-wrap items-center gap-1.5"
+				role="group"
+				aria-label="Vorhandene Kategorien"
+			>
+				<span class="text-xs text-muted-foreground" aria-hidden="true">
+					{form.category.trim() ? 'Passend:' : 'Vorhanden:'}
+				</span>
+				{#each categorySuggestions as category (category)}
+					<Button
+						variant="outline"
+						size="sm"
+						class="rounded-full font-normal pointer-coarse:h-9"
+						onclick={() => (form.category = category)}
+					>
+						{category}
+					</Button>
+				{/each}
+			</div>
+		{/if}
 	</Field>
 	<Field label="Beschreibung" id="material-description">
 		<Input id="material-description" bind:value={form.description} />
@@ -338,10 +360,6 @@
 				Zum Beispiel die Längen eines Seils. Jede Variante braucht einen eigenen Namen, z. B. „15
 				m“.
 				{#if bulk && id}Erfasste Einkäufe erhöhen den Bestand automatisch.{/if}
-				{#if form.variants.some(hasItems)}
-					Varianten mit Gegenständen lassen sich erst entfernen, wenn ihre Gegenstände gelöscht oder
-					einer anderen Variante zugeordnet sind.
-				{/if}
 			</p>
 			{#if bulk && !cards}
 				<div
@@ -426,10 +444,8 @@
 						size="icon"
 						class={[bulk && ['hidden', !cards && 'sm:inline-flex']]}
 						aria-label="{label} entfernen"
-						title={hasItems(variant)
-							? 'Hat noch Gegenstände – lösche sie zuerst oder ordne sie einer anderen Variante zu'
-							: 'Entfernen'}
-						disabled={form.variants.length === 1 || hasItems(variant)}
+						title="Entfernen"
+						disabled={form.variants.length === 1}
 						onclick={() => removeVariant(variant)}
 					>
 						<XIcon />
@@ -449,20 +465,6 @@
 					<PlusIcon />Variante hinzufügen
 				</Button>
 			</div>
-			{#if form.removed.length > 0}
-				<p class="text-sm text-muted-foreground">
-					Wird beim Speichern entfernt:
-					{#each form.removed as variant, r (variant)}
-						{r > 0 ? ', ' : ''}{savedNameOf(variant)}
-						<Button
-							variant="link"
-							class="h-auto p-0"
-							aria-label="Variante {savedNameOf(variant)} behalten"
-							onclick={() => restoreVariant(variant)}>(behalten)</Button
-						>
-					{/each}
-				</p>
-			{/if}
 		</fieldset>
 		{#if bulk}
 			<div class="flex items-center gap-2">

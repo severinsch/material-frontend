@@ -1,9 +1,11 @@
 <script lang="ts">
+	import ArchiveRestoreIcon from '@lucide/svelte/icons/archive-restore';
 	import ArrowLeftIcon from '@lucide/svelte/icons/arrow-left';
 	import PencilIcon from '@lucide/svelte/icons/pencil';
 	import PlusIcon from '@lucide/svelte/icons/plus';
 	import Trash2Icon from '@lucide/svelte/icons/trash-2';
 	import { mutate, type BulkVariant, type DamageReport, type Purchase } from '#lib/api/index.js';
+	import { materialActions, setArchived } from '#lib/archive.js';
 	import { formatDate, formatPrice, itemName, trackingTypeLabels, variantOf } from '#lib/format.js';
 	import { isAvailableItem } from '#lib/loans.js';
 	import { availableNow, settings } from '#lib/settings.svelte.js';
@@ -13,6 +15,7 @@
 	import * as Table from '#lib/components/ui/table/index.js';
 	import ConfirmDelete from '#lib/components/ConfirmDelete.svelte';
 	import DamageDialog from '#lib/components/DamageDialog.svelte';
+	import DeleteMaterialDialog from '#lib/components/DeleteMaterialDialog.svelte';
 	import ItemTable from '#lib/components/ItemTable.svelte';
 	import LoanedToggle from '#lib/components/LoanedToggle.svelte';
 	import MaterialDialog from '#lib/components/MaterialDialog.svelte';
@@ -75,6 +78,7 @@
 	// Only rendered for bulk materials.
 	let purchaseDialog = $state<PurchaseDialog>();
 	let confirmDelete: ConfirmDelete;
+	let deleteDialog: DeleteMaterialDialog;
 
 	const path = (id: string) => ({ params: { path: { id } } });
 
@@ -83,14 +87,6 @@
 		return item
 			? itemName(material, variantOf(material, item.variantId), item)
 			: `${material.name} ?`;
-	}
-
-	function removeMaterial() {
-		confirmDelete.show(`Material „${material.name}“`, () =>
-			mutate(api.DELETE('/materials/{id}', path(material.id)), `${material.name} gelöscht`, {
-				redirectTo: tenant.href('')
-			})
-		);
 	}
 
 	function removeDamage(report: DamageReport) {
@@ -120,7 +116,12 @@
 		</a>
 		<div class="flex items-start justify-between gap-4">
 			<div>
-				<h1 class="text-2xl font-bold tracking-tight">{material.name}</h1>
+				<h1 class="text-2xl font-bold tracking-tight">
+					{material.name}
+					{#if material.archivedAt}
+						<Badge variant="secondary" class="align-middle">Archiviert</Badge>
+					{/if}
+				</h1>
 				<p class="text-muted-foreground">
 					{[trackingTypeLabels[material.trackingType], material.category, material.description]
 						.filter(Boolean)
@@ -141,18 +142,34 @@
 					<Button variant="outline" onclick={() => materialDialog.show(material)}>
 						<PencilIcon />Bearbeiten
 					</Button>
-					<Button
-						variant="outline"
-						size="icon"
-						aria-label="{material.name} löschen"
-						title="Löschen"
-						onclick={removeMaterial}
-					>
-						<Trash2Icon />
-					</Button>
+					<RowActions
+						name={material.name}
+						outline
+						actions={materialActions(api, material, {
+							ondelete: () => deleteDialog.show(material),
+							// The banner below offers it.
+							offerUnarchive: false
+						})}
+					/>
 				</div>
 			{/if}
 		</div>
+
+		{#if material.archivedAt}
+			<div
+				class="flex flex-wrap items-center justify-between gap-x-4 gap-y-2 rounded-md border bg-muted/30 px-3 py-2 text-sm"
+			>
+				<p class="text-muted-foreground">
+					Archiviert am {formatDate(material.archivedAt)}. Es erscheint nicht mehr in der
+					Materialliste, in Sets und beim Ausleihen; Ausleihen und Einkäufe bleiben erhalten.
+				</p>
+				{#if canEdit}
+					<Button variant="outline" size="sm" onclick={() => setArchived(api, material, false)}>
+						<ArchiveRestoreIcon />Aus dem Archiv holen
+					</Button>
+				{/if}
+			</div>
+		{/if}
 
 		<dl class="grid grid-cols-2 gap-3 sm:grid-cols-4">
 			{#each counts as count (count.label)}
@@ -280,7 +297,8 @@
 		<section class="space-y-2">
 			<div class="flex items-center justify-between">
 				<h2 class="text-lg font-semibold">Einkäufe</h2>
-				{#if canEdit}
+				<!-- Archived materials get no new purchases. -->
+				{#if canEdit && !material.archivedAt}
 					<Button size="sm" onclick={() => purchaseDialog?.show()}
 						><PlusIcon />Einkauf erfassen</Button
 					>
@@ -348,9 +366,10 @@
 	{/if}
 </div>
 
-<MaterialDialog bind:this={materialDialog} locations={data.locations} items={data.items} />
+<MaterialDialog bind:this={materialDialog} materials={data.materials} locations={data.locations} />
 <DamageDialog bind:this={damageDialog} />
 {#if material.trackingType === 'BULK'}
 	<PurchaseDialog bind:this={purchaseDialog} {material} />
 {/if}
 <ConfirmDelete bind:this={confirmDelete} />
+<DeleteMaterialDialog bind:this={deleteDialog} redirectTo={tenant.href('')} />

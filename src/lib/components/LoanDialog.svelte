@@ -11,6 +11,7 @@
 	} from '#lib/api/index.js';
 	import { orNull, statusLabels, today, variantName, variantsById } from '#lib/format.js';
 	import { isAvailableItem, loanContents } from '#lib/loans.js';
+	import { matchesIdentifier, matchesText, normalizeSearch } from '#lib/search.js';
 	import { getTenant } from '#lib/tenant.js';
 	import { Button } from '#lib/components/ui/button/index.js';
 	import { Checkbox } from '#lib/components/ui/checkbox/index.js';
@@ -44,6 +45,8 @@
 	let title = $state('');
 	/** The items of the edited loan as saved, which stay listed even when unchecked or no longer active. */
 	let ownItemIds = $state<string[]>([]);
+	/** The variants of the edited loan as saved, which stay listed even if their material was archived since. */
+	let ownVariantIds = $state<string[]>([]);
 	/** Pieces per variant the edited loan holds if it's open; they count as lent out and are free for it again. */
 	let ownPieces = $state<Record<string, number>>({});
 	let query = $state('');
@@ -68,8 +71,7 @@
 	const variants = $derived(variantsById(materials));
 	const itemsById = $derived(new Map(items.map((item) => [item.id, item])));
 
-	const search = $derived(query.trim().toLowerCase());
-	const matches = (text: string) => text.toLowerCase().includes(search);
+	const search = $derived(normalizeSearch(query));
 
 	/** Items of each individual variant that can be picked: active and not lent, plus the loan's own items. */
 	const pickable = $derived(
@@ -92,9 +94,11 @@
 			const rows = material.variants.filter(
 				(variant) =>
 					(free(variant) > 0 || isInLoan(variant.id)) &&
-					(matches(variantName(material, variant)) ||
-						matches(material.name) ||
-						pickable.get(variant.id)?.some((item) => matches(item.identifier)))
+					// Archived materials aren't offered for lending; loans that have them keep them.
+					(!material.archivedAt || ownVariantIds.includes(variant.id)) &&
+					(matchesText(variantName(material, variant), search) ||
+						matchesText(material.name, search) ||
+						pickable.get(variant.id)?.some((item) => matchesIdentifier(item.identifier, search)))
 			);
 			return rows.length > 0 ? [{ material, rows }] : [];
 		})
@@ -130,6 +134,10 @@
 		title = loan ? `Ausleihe an ${loan.borrower} bearbeiten` : 'Material ausleihen';
 		ownBorrower = loan?.borrowerId ? { value: loan.borrowerId, label: loan.borrower } : null;
 		ownItemIds = loan?.itemIds ?? [];
+		ownVariantIds = [
+			...(loan?.materials ?? []).map((line) => line.variantId),
+			...ownItemIds.flatMap((itemId) => itemsById.get(itemId)?.variantId ?? [])
+		];
 		ownPieces = {};
 		if (loan && !loan.returnedAt) {
 			for (const line of loan.materials) ownPieces[line.variantId] = line.quantity;
@@ -173,25 +181,32 @@
 		form.itemIds = checked ? [...form.itemIds, itemId] : form.itemIds.filter((i) => i !== itemId);
 	}
 
+	/** What is lent, in a fixed order, without empty quantities or the quantities of variants picked by item. */
 	function linesOf({ quantities, picking, itemIds }: typeof form) {
 		return {
-			itemIds,
+			itemIds: itemIds.toSorted(),
 			materials: Object.entries(quantities)
 				.filter(([variantId, quantity]) => quantity && !picking[variantId])
 				.map(([variantId, quantity]) => ({ variantId, quantity: quantity! }))
+				.toSorted((a, b) => a.variantId.localeCompare(b.variantId))
 		};
 	}
 
+	/**
+	 * The loan as it is sent. Also what tells whether anything was changed: unlike the form, it has no leftovers of
+	 * changes taken back, like a cleared quantity or a picking switched on and off again.
+	 */
+	const body = $derived<NewLoan>({
+		borrowerId: form.borrowerId === OTHER ? null : form.borrowerId,
+		borrower: form.borrowerId === OTHER ? form.borrower : null,
+		lentAt: form.lentAt,
+		dueAt: orNull(form.dueAt),
+		returnedAt: orNull(form.returnedAt),
+		note: orNull(form.note),
+		...lines
+	});
+
 	function save() {
-		const body: NewLoan = {
-			borrowerId: form.borrowerId === OTHER ? null : form.borrowerId,
-			borrower: form.borrowerId === OTHER ? form.borrower : null,
-			lentAt: form.lentAt,
-			dueAt: orNull(form.dueAt),
-			returnedAt: orNull(form.returnedAt),
-			note: orNull(form.note),
-			...lines
-		};
 		const request = id
 			? api.PUT('/loans/{id}', { params: { path: { id } }, body })
 			: api.POST('/loans', { body });
@@ -217,7 +232,7 @@
 					</Label>
 				{/if}
 				<span id="loan-free-{variant.id}" class="text-xs text-muted-foreground tabular-nums">
-					{available} verfügbar
+					{available} verfügbar{material.archivedAt ? ' · archiviert' : ''}
 				</span>
 			</div>
 			{#if picking}
@@ -275,7 +290,13 @@
 	</div>
 {/snippet}
 
-<FormDialog bind:open {title} submitLabel={id ? 'Speichern' : 'Ausleihen'} onsubmit={save}>
+<FormDialog
+	bind:open
+	values={body}
+	{title}
+	submitLabel={id ? 'Speichern' : 'Ausleihen'}
+	onsubmit={save}
+>
 	{#if canEdit}
 		<Field label="Ausgeliehen an" id="loan-borrower">
 			<SelectField id="loan-borrower" bind:value={form.borrowerId} options={borrowerOptions} />
@@ -313,19 +334,23 @@
 
 	<fieldset class="grid gap-2">
 		<legend class="mb-2 text-sm font-medium">Was wird ausgeliehen?</legend>
-		<div class="relative">
-			<SearchIcon
-				class="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground"
-			/>
-			<Input
-				type="search"
-				placeholder="Material oder Kennung suchen…"
-				aria-label="Material oder Kennung suchen"
-				class="pl-9"
-				bind:value={query}
-			/>
+		<!-- Sticks to the top of the dialog while scrolling through the materials; -top-4 (the dialog's padding) makes
+		     it flush with the edge, so no strip of the list shows above it. -->
+		<div class="sticky -top-4 z-10 -mx-4 -my-2 bg-popover px-4 py-2">
+			<div class="relative">
+				<SearchIcon
+					class="pointer-events-none absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground"
+				/>
+				<Input
+					type="search"
+					placeholder="Material oder Kennung suchen…"
+					aria-label="Material oder Kennung suchen"
+					class="pl-9"
+					bind:value={query}
+				/>
+			</div>
 		</div>
-		<div class="grid max-h-80 gap-4 overflow-y-auto rounded-md border p-3">
+		<div class="grid gap-4 rounded-md border p-3">
 			{#each listed as { material, rows } (material.id)}
 				{#if material.variants.length > 1}
 					<!-- Variants are lent separately and listed under their material. -->

@@ -5,6 +5,7 @@
 		formatDate,
 		itemNameOf,
 		statusLabels,
+		variantName,
 		variantsById
 	} from '#lib/format.js';
 	import { isOverdue, loanContents } from '#lib/loans.js';
@@ -21,16 +22,50 @@
 
 	const overdueLoans = $derived(data.loans.filter(isOverdue));
 	const otherOpenLoans = $derived(data.loans.filter((loan) => !isOverdue(loan)));
+	/** Archived materials are no longer in use, so their damage needs no attention (items and reports alike). */
+	const archivedIds = $derived(
+		new Set(data.materials.filter((m) => m.archivedAt).map((material) => material.id))
+	);
 	/** Items that need attention: in repair, or active but in poor condition. */
 	const damagedItems = $derived(
 		data.items
 			.filter(
 				(item) =>
-					item.status === 'IN_REPAIR' || (item.status === 'ACTIVE' && item.condition === 'POOR')
+					!archivedIds.has(item.materialId) &&
+					(item.status === 'IN_REPAIR' || (item.status === 'ACTIVE' && item.condition === 'POOR'))
 			)
 			.toSorted((a, b) =>
 				itemName(a.id).localeCompare(itemName(b.id), undefined, { numeric: true })
 			)
+	);
+
+	/**
+	 * Bulk stock marked as damaged, per variant, e.g. a few bent Heringe. Listed apart from the items and more
+	 * quietly, since it usually matters much less than a torn tent.
+	 */
+	const damagedStock = $derived(
+		data.materials
+			.flatMap((material) =>
+				material.trackingType === 'BULK' && !material.archivedAt
+					? material.variants
+							.filter((variant) => variant.damagedCount > 0)
+							.map((variant) => ({
+								id: variant.id,
+								materialId: material.id,
+								name: variantName(material, variant),
+								count: variant.damagedCount
+							}))
+					: []
+			)
+			.toSorted((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true }))
+	);
+
+	/** Open damage reports, without those of archived materials. */
+	const openDamages = $derived(
+		data.openDamages.filter((report) => {
+			const item = items.get(report.itemId);
+			return !item || !archivedIds.has(item.materialId);
+		})
 	);
 
 	function itemName(itemId: string) {
@@ -44,7 +79,8 @@
 	count: number,
 	href: string | undefined,
 	empty: string,
-	content: Snippet
+	content: Snippet,
+	after?: Snippet
 )}
 	<Card.Root>
 		<Card.Header>
@@ -61,6 +97,7 @@
 			{:else}
 				<ul class="divide-y text-sm">{@render content()}</ul>
 			{/if}
+			{@render after?.()}
 		</Card.Content>
 	</Card.Root>
 {/snippet}
@@ -108,7 +145,7 @@
 			'Offene Ausleihen',
 			otherOpenLoans.length,
 			tenant.href('/loans'),
-			'Sonst ist nichts ausgeliehen.',
+			overdueLoans.length > 0 ? 'Sonst ist nichts ausgeliehen.' : 'Nichts ist ausgeliehen.',
 			open
 		)}
 
@@ -129,16 +166,35 @@
 				</li>
 			{/each}
 		{/snippet}
+		{#snippet stock()}
+			{#if damagedStock.length > 0}
+				<div class="mt-3 border-t pt-3 text-sm text-muted-foreground">
+					<h3 class="font-medium">Beschädigter Bestand</h3>
+					<ul class="mt-1 flex flex-wrap gap-x-3 gap-y-1">
+						{#each damagedStock as entry (entry.id)}
+							<li>
+								<a href={tenant.href(`/materials/${entry.materialId}`)} class="hover:underline"
+									>{entry.name}</a
+								>: <span class="tabular-nums">{entry.count}</span>
+							</li>
+						{/each}
+					</ul>
+				</div>
+			{/if}
+		{/snippet}
 		{@render section(
 			'In Reparatur oder in schlechtem Zustand',
 			damagedItems.length,
 			undefined,
-			'Alle Gegenstände sind in Ordnung.',
-			damaged
+			damagedStock.length > 0
+				? 'Kein Gegenstand ist in Reparatur oder in schlechtem Zustand.'
+				: 'Alles ist in Ordnung.',
+			damaged,
+			stock
 		)}
 
 		{#snippet damages()}
-			{#each data.openDamages as report (report.id)}
+			{#each openDamages as report (report.id)}
 				{@const item = items.get(report.itemId)}
 				<li class="py-2">
 					<p>
@@ -157,7 +213,7 @@
 		{/snippet}
 		{@render section(
 			'Offene Schadensmeldungen',
-			data.openDamages.length,
+			openDamages.length,
 			undefined,
 			'Keine offenen Schadensmeldungen.',
 			damages

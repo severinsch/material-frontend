@@ -24,12 +24,13 @@
 		const request = tenant
 			? api.PUT('/tenants/{tenantId}', { params: { path: { tenantId: tenant.id } }, body: form })
 			: api.POST('/tenants', { body: form });
-		return mutate(request, `${form.name} gespeichert`);
+		return mutate(request, (saved) => `${saved.name} gespeichert`);
 	}
 </script>
 
 <FormDialog
 	bind:open
+	values={form}
 	title={tenant ? `${tenant.name} bearbeiten` : 'Stamm anlegen'}
 	submitLabel={tenant ? 'Speichern' : 'Anlegen'}
 	onsubmit={save}

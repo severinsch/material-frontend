@@ -128,6 +128,7 @@
 
 <FormDialog
 	bind:open
+	values={{ form, count }}
 	title={edited ? `${editedName} bearbeiten` : `Gegenstände zu ${material.name} hinzufügen`}
 	submitLabel={edited
 		? 'Speichern'

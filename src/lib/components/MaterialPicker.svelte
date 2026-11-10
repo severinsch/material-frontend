@@ -37,10 +37,12 @@
 
 	/**
 	 * A material with several variants is offered as "any variant" followed by its variants; others once, as the
-	 * material. The values are unique keys; the search filters on the names, given as keywords.
+	 * material. The values are unique keys; the search filters on the names, given as keywords. Archived materials
+	 * can't be used in kits, so they aren't offered.
 	 */
 	const entries = $derived(
 		materials
+			.filter((material) => !material.archivedAt)
 			.toSorted((a, b) => a.name.localeCompare(b.name))
 			.flatMap((material) =>
 				material.variants.length > 1
@@ -74,10 +76,7 @@
 						]
 			)
 	);
-	/**
-	 * The selection's name. An option for a specific variant of a material that has only this variant left is shown
-	 * as the material, like "any variant", which means the same then.
-	 */
+	/** The selection's name, e.g. "Seil 15 m", or "Seil (beliebige Variante)" for any variant of several. */
 	const selectedName = $derived.by(() => {
 		const material = materials.find((m) => m.id === materialId);
 		if (!material) return undefined;

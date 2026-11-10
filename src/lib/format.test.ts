@@ -30,11 +30,11 @@ const named = {
 } as Material;
 
 describe('names', () => {
-	it('includes the variant only if the material has several', () => {
+	it('includes the variant if it has a name', () => {
 		expect(variantName(seil, seil.variants[1])).toBe('Seil 15 m');
 		expect(variantName(plane, plane.variants[0])).toBe('Kohtenplane');
-		// A single named variant isn't shown either, as in the backend.
-		expect(variantName(named, named.variants[0])).toBe('Kohtenblatt');
+		// Also a single named variant, as in the backend.
+		expect(variantName(named, named.variants[0])).toBe('Kohtenblatt grün');
 	});
 
 	it('names items by their variant and identifier', () => {

@@ -1,15 +1,19 @@
 <script lang="ts">
+	import ArchiveIcon from '@lucide/svelte/icons/archive';
 	import ArrowDownIcon from '@lucide/svelte/icons/arrow-down';
 	import ArrowUpIcon from '@lucide/svelte/icons/arrow-up';
 	import ChevronDownIcon from '@lucide/svelte/icons/chevron-down';
 	import ChevronRightIcon from '@lucide/svelte/icons/chevron-right';
+	import ClipboardListIcon from '@lucide/svelte/icons/clipboard-list';
 	import MergeIcon from '@lucide/svelte/icons/merge';
 	import PlusIcon from '@lucide/svelte/icons/plus';
 	import SearchIcon from '@lucide/svelte/icons/search';
-	import Trash2Icon from '@lucide/svelte/icons/trash-2';
 	import { SvelteSet } from 'svelte/reactivity';
-	import { mutate, type IndividualItem, type Material } from '#lib/api/index.js';
+	import type { IndividualItem, Material } from '#lib/api/index.js';
+	import { materialActions } from '#lib/archive.js';
 	import { trackingTypeLabels } from '#lib/format.js';
+	import { isRetired } from '#lib/items.js';
+	import { matchMaterial, normalizeSearch, type MaterialMatch } from '#lib/search.js';
 	import { availableNow } from '#lib/settings.svelte.js';
 	import { getTenant } from '#lib/tenant.js';
 	import { Badge } from '#lib/components/ui/badge/index.js';
@@ -18,7 +22,7 @@
 	import { Input } from '#lib/components/ui/input/index.js';
 	import * as Table from '#lib/components/ui/table/index.js';
 	import CategoryFilter from '#lib/components/CategoryFilter.svelte';
-	import ConfirmDelete from '#lib/components/ConfirmDelete.svelte';
+	import DeleteMaterialDialog from '#lib/components/DeleteMaterialDialog.svelte';
 	import ItemTable from '#lib/components/ItemTable.svelte';
 	import LoanedToggle from '#lib/components/LoanedToggle.svelte';
 	import MaterialDialog from '#lib/components/MaterialDialog.svelte';
@@ -35,10 +39,19 @@
 
 	let query = $state('');
 	let sort = $state<{ key: SortKey; descending: boolean }>({ key: 'category', descending: false });
+	/** Materials whose items are shown, opened by hand. */
 	const expanded = new SvelteSet<string>();
+	/** Materials opened by the search (see [isOpen]) and closed by hand; forgotten when the search changes. */
+	const collapsed = new SvelteSet<string>();
 	let materialDialog: MaterialDialog;
 	let mergeDialog: MergeDialog;
-	let confirmDelete: ConfirmDelete;
+	let deleteDialog: DeleteMaterialDialog;
+	/** Whether archived materials are listed too; they are hidden by default. */
+	let showArchived = $state(false);
+	/** The materials that can be listed: without archived ones, unless they are shown. */
+	const listable = $derived(
+		showArchived ? data.materials : data.materials.filter((material) => !material.archivedAt)
+	);
 
 	/** Whether materials are being selected to merge them; the first selected is the target. */
 	let selecting = $state(false);
@@ -53,11 +66,9 @@
 	const categories = new SvelteSet<string>();
 	/** Categories with their number of materials, by name, "Ohne Kategorie" last. */
 	const categoryCounts = $derived(
-		[
-			...Map.groupBy(data.materials, (material) => material.category ?? '')
-				.entries()
-				.map(([category, inCategory]): [string, number] => [category, inCategory.length])
-		].toSorted(([a], [b]) => categoryOrder(a, b))
+		[...Map.groupBy(listable, (material) => material.category ?? '')]
+			.map(([category, inCategory]): [string, number] => [category, inCategory.length])
+			.toSorted(([a], [b]) => categoryOrder(a, b))
 	);
 	/** Sorted by category, the materials are shown in sections per category; other columns sort them flat. */
 	const grouped = $derived(sort.key === 'category');
@@ -89,7 +100,9 @@
 			const names = material.variants.map((variant) => variant.location?.name);
 			return [...new Set(names.filter(Boolean))].sort().join(', ');
 		}
-		const names = (itemsByMaterial[material.id] ?? []).map((item) => item.storageLocation?.name);
+		const names = (itemsByMaterial[material.id] ?? [])
+			.filter((item) => !isRetired(item))
+			.map((item) => item.storageLocation?.name);
 		return [...new Set(names.filter(Boolean))].sort().join(', ');
 	}
 
@@ -110,29 +123,46 @@
 		loaned: (m) => m.loanedCount
 	};
 
+	/** How each material matches the search, by id; item identifiers count too ("K07"). */
+	const matches = $derived.by(() => {
+		const search = normalizeSearch(query);
+		return new Map<string, MaterialMatch>(
+			data.materials.map((material) => [
+				material.id,
+				matchMaterial(
+					search,
+					[
+						material.name,
+						material.category,
+						material.description,
+						locationOf(material),
+						...material.variants.map((variant) => variant.name)
+					],
+					itemsByMaterial[material.id] ?? []
+				)
+			])
+		);
+	});
+
+	/** Whether [material] passes the category filter and the search. */
+	function isFound(material: Material) {
+		return (
+			(categories.size === 0 || categories.has(material.category ?? '')) &&
+			!!matches.get(material.id)?.matches
+		);
+	}
+
 	const materials = $derived.by(() => {
-		const q = query.trim().toLowerCase();
 		const value = sortValues[sort.key];
 		const direction = sort.descending ? -1 : 1;
-		return data.materials
-			.filter((material) => categories.size === 0 || categories.has(material.category ?? ''))
-			.filter((material) =>
-				[
-					material.name,
-					material.category,
-					material.description,
-					locationOf(material),
-					...material.variants.map((variant) => variant.name)
-				].some((text) => text?.toLowerCase().includes(q))
-			)
-			.toSorted((a, b) => {
-				const [x, y] = [value(a), value(b)];
-				const order =
-					typeof x === 'number' && typeof y === 'number'
-						? x - y
-						: String(x).localeCompare(String(y), undefined, { numeric: true });
-				return order * direction || a.name.localeCompare(b.name);
-			});
+		return listable.filter(isFound).toSorted((a, b) => {
+			const [x, y] = [value(a), value(b)];
+			const order =
+				typeof x === 'number' && typeof y === 'number'
+					? x - y
+					: String(x).localeCompare(String(y), undefined, { numeric: true });
+			return order * direction || a.name.localeCompare(b.name);
+		});
 	});
 
 	/** The listed materials by category, in their order within each. */
@@ -142,10 +172,17 @@
 		)
 	);
 
+	/** Archived materials that would be listed if shown, which the toggle below the list points out. */
+	const hiddenArchived = $derived(
+		showArchived ? 0 : data.materials.filter((m) => m.archivedAt && isFound(m)).length
+	);
+
 	const emptyText = $derived(
 		query || categories.size > 0
 			? 'Keine passenden Materialien gefunden.'
-			: 'Noch keine Materialien.'
+			: hiddenArchived > 0
+				? 'Alle Materialien sind archiviert.'
+				: 'Noch keine Materialien.'
 	);
 
 	function sortBy(key: SortKey) {
@@ -163,17 +200,20 @@
 		selectedIds = [];
 	}
 
-	function toggle(materialId: string) {
-		if (!expanded.delete(materialId)) expanded.add(materialId);
+	/** Whether [materialId] was found only by an item's identifier, so its items are shown to point it out. */
+	function openedBySearch(materialId: string) {
+		const match = matches.get(materialId);
+		return !!match && !match.byText && match.itemIds.size > 0;
 	}
 
-	function remove(material: Material) {
-		confirmDelete.show(`Material „${material.name}“`, () =>
-			mutate(
-				api.DELETE('/materials/{id}', { params: { path: { id: material.id } } }),
-				`${material.name} gelöscht`
-			)
-		);
+	/** Whether the items of [materialId] are shown: opened by the search and not closed, or opened by hand. */
+	function isOpen(materialId: string) {
+		return openedBySearch(materialId) ? !collapsed.has(materialId) : expanded.has(materialId);
+	}
+
+	function toggle(materialId: string) {
+		const toggled = openedBySearch(materialId) ? collapsed : expanded;
+		if (!toggled.delete(materialId)) toggled.add(materialId);
 	}
 </script>
 
@@ -189,43 +229,48 @@
 {/snippet}
 
 {#snippet materialRows(material: Material)}
-	{@const isOpen = expanded.has(material.id)}
-	<Table.Row>
+	{@const open = isOpen(material.id)}
+	<Table.Row class={material.archivedAt ? 'text-muted-foreground' : undefined}>
 		{#if selecting}
 			{@const otherType = !!selectableType && material.trackingType !== selectableType}
 			<Table.Cell class="pr-0">
 				<div
 					class="flex size-8 items-center justify-center"
-					title={otherType ? 'Andere Erfassungsart als die Auswahl' : undefined}
+					title={material.archivedAt
+						? 'Archivierte Materialien lassen sich nicht zusammenführen'
+						: otherType
+							? 'Andere Erfassungsart als die Auswahl'
+							: undefined}
 				>
 					<Checkbox
 						aria-label="{material.name} auswählen"
 						checked={selectedIds.includes(material.id)}
-						disabled={otherType}
+						disabled={otherType || !!material.archivedAt}
 						onCheckedChange={(checked) => select(material, checked)}
 					/>
 				</div>
 			</Table.Cell>
 		{/if}
-		<Table.Cell class="pr-0">
+		<Table.Cell class="pr-0 max-sm:pl-0">
 			{#if material.trackingType === 'INDIVIDUAL'}
 				<Button
 					variant="ghost"
 					size="icon-sm"
-					aria-label={isOpen
+					aria-label={open
 						? `Gegenstände von ${material.name} ausblenden`
 						: `Gegenstände von ${material.name} anzeigen`}
-					aria-expanded={isOpen}
+					aria-expanded={open}
 					onclick={() => toggle(material.id)}
 				>
-					{#if isOpen}<ChevronDownIcon />{:else}<ChevronRightIcon />{/if}
+					{#if open}<ChevronDownIcon />{:else}<ChevronRightIcon />{/if}
 				</Button>
 			{/if}
 		</Table.Cell>
-		<Table.Cell class="whitespace-normal">
+		<Table.Cell class="hyphens-auto whitespace-normal">
 			<a href={tenant.href(`/materials/${material.id}`)} class="font-medium hover:underline"
 				>{material.name}</a
 			>
+			{#if material.archivedAt}<Badge variant="secondary">Archiviert</Badge>{/if}
 			{#if variantCounts(material)}
 				<p class="text-sm text-muted-foreground tabular-nums">
 					<span class="sr-only">Verfügbar je Variante:</span>
@@ -255,30 +300,27 @@
 		<Table.Cell class="hidden text-right tabular-nums sm:table-cell">
 			{material.loanedCount}
 		</Table.Cell>
-		<Table.Cell class="text-right">
+		<!-- While selecting, phones leave out the row actions to make room for the checkboxes (T-18). -->
+		<Table.Cell class={['text-right max-sm:pr-0', selecting && 'max-sm:hidden']}>
 			{#if canEdit}
 				<RowActions
 					name={material.name}
 					onedit={() => materialDialog.show(material)}
-					actions={[
-						{
-							label: 'Löschen',
-							icon: Trash2Icon,
-							destructive: true,
-							onselect: () => remove(material)
-						}
-					]}
+					actions={materialActions(api, material, {
+						ondelete: () => deleteDialog.show(material)
+					})}
 				/>
 			{/if}
 		</Table.Cell>
 	</Table.Row>
-	{#if isOpen && material.trackingType === 'INDIVIDUAL'}
+	{#if open && material.trackingType === 'INDIVIDUAL'}
 		<Table.Row class="hover:bg-transparent">
 			<Table.Cell colspan={columns} class="bg-muted/30 p-3 whitespace-normal sm:pl-10">
 				<ItemTable
 					{material}
 					items={itemsByMaterial[material.id] ?? []}
 					locations={data.locations}
+					highlighted={matches.get(material.id)?.itemIds}
 				/>
 			</Table.Cell>
 		</Table.Row>
@@ -296,16 +338,25 @@
 <div class="space-y-4">
 	<div class="flex flex-wrap items-center justify-between gap-4">
 		<h1 class="text-2xl font-bold tracking-tight">Materialien</h1>
-		{#if canEdit}
-			<div class="flex flex-wrap gap-2">
+		<div class="flex flex-wrap gap-2">
+			<!-- For the Vorstand, the cash audit or insurance; quiet, since it's needed about once a year. -->
+			<Button
+				variant="ghost"
+				href={tenant.href('/report')}
+				aria-label="Inventarliste"
+				title="Inventarliste zum Drucken"
+			>
+				<ClipboardListIcon /><span class="hidden sm:inline">Inventarliste</span>
+			</Button>
+			{#if canEdit}
 				{#if !selecting}
 					<Button variant="outline" onclick={() => (selecting = true)}>
 						<MergeIcon />Zusammenführen
 					</Button>
 				{/if}
 				<Button onclick={() => materialDialog.show()}><PlusIcon />Material anlegen</Button>
-			</div>
-		{/if}
+			{/if}
+		</div>
 	</div>
 
 	{#if selecting}
@@ -351,9 +402,10 @@
 			<Input
 				type="search"
 				aria-label="Materialien durchsuchen"
-				placeholder="Name, Variante, Kategorie, Beschreibung, Lagerort…"
+				placeholder="Name, Kennung, Kategorie, Lagerort…"
 				class="pl-9"
 				bind:value={query}
+				oninput={() => collapsed.clear()}
 			/>
 		</div>
 		<CategoryFilter counts={categoryCounts} selected={categories} />
@@ -384,7 +436,9 @@
 					<Table.Head class="hidden text-right sm:table-cell">
 						{@render sortable('loaned', 'Ausgeliehen')}
 					</Table.Head>
-					<Table.Head class="w-20"><span class="sr-only">Aktionen</span></Table.Head>
+					<Table.Head class={['w-20', selecting && 'max-sm:hidden']}
+						><span class="sr-only">Aktionen</span></Table.Head
+					>
 				</Table.Row>
 			</Table.Header>
 			<Table.Body>
@@ -418,8 +472,29 @@
 			</Table.Body>
 		</Table.Root>
 	</div>
+
+	{#if showArchived || hiddenArchived > 0}
+		<!-- Archived materials stay out of the way: a quiet toggle below the list, which also points out search hits
+		     among them. -->
+		<Button
+			variant="link"
+			size="sm"
+			class="h-auto p-0 text-muted-foreground pointer-coarse:min-h-11"
+			onclick={() => (showArchived = !showArchived)}
+		>
+			<ArchiveIcon />
+			{#if showArchived}
+				Archivierte ausblenden
+			{:else if query.trim() || categories.size > 0}
+				{hiddenArchived}
+				{hiddenArchived === 1 ? 'archiviertes passt' : 'archivierte passen'} auch – anzeigen
+			{:else}
+				{hiddenArchived} {hiddenArchived === 1 ? 'archiviertes' : 'archivierte'} anzeigen
+			{/if}
+		</Button>
+	{/if}
 </div>
 
-<MaterialDialog bind:this={materialDialog} locations={data.locations} items={data.items} />
-<MergeDialog bind:this={mergeDialog} kits={data.kits} />
-<ConfirmDelete bind:this={confirmDelete} />
+<MaterialDialog bind:this={materialDialog} materials={data.materials} locations={data.locations} />
+<MergeDialog bind:this={mergeDialog} />
+<DeleteMaterialDialog bind:this={deleteDialog} />

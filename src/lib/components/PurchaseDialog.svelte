@@ -60,6 +60,7 @@
 
 <FormDialog
 	bind:open
+	values={form}
 	title={id ? `Einkauf von ${name} bearbeiten` : `Einkauf von ${material.name} erfassen`}
 	submitLabel={id ? 'Speichern' : 'Erfassen'}
 	description={id

@@ -239,11 +239,7 @@
 		return lines.filter((line) => line.kitId === kit.id);
 	}
 
-	/** Whether [line] has the default choices and no pins that count. */
-	/**
-	 * Whether [line] has the default choices and no pins, not even inactive ones: adding to a line whose windows are
-	 * pinned while packed without would pin the added kits too once "mit" is chosen.
-	 */
+	/** Whether [line] has the default choices and no pins. */
 	function isPlain(line: PackingLine) {
 		return line.choices.every((choice) => choice === 0) && line.pins.every((pin) => !pin);
 	}
@@ -274,6 +270,12 @@
 		return kit.groups.flatMap((group, index) =>
 			isPinnable({ kit, choices: line.choices }, index) ? [{ group, index }] : []
 		);
+	}
+
+	/** Chooses an amount for a group; packing it without ("ohne") drops its pin. */
+	function setChoice(kit: Kit, line: PackingLine, groupIndex: number, amountIndex: number) {
+		line.choices[groupIndex] = amountIndex;
+		if (!isPinnable({ kit, choices: line.choices }, groupIndex)) line.pins[groupIndex] = null;
 	}
 
 	/** The select value of a group without a pin. */
@@ -582,7 +584,7 @@
 														<Select.Root
 															type="single"
 															value={String(line.choices[g])}
-															onValueChange={(value) => (line.choices[g] = Number(value))}
+															onValueChange={(value) => setChoice(kit, line, g, Number(value))}
 														>
 															<Select.Trigger size="sm" aria-label="{name} für {kit.name}">
 																{name}: {group.amounts[line.choices[g]]?.label}

@@ -27,22 +27,20 @@ export const trackingTypeLabels: Record<Material['trackingType'], string> = {
 };
 
 // Names of variants and items, built here so the format can change in one place. Like the backend
-// (services/Names.kt), a variant's name is only included if its material has several variants, since the UI doesn't
-// show variants otherwise: "Seil 15 m" and "Kohtenplane 45 cm Latz K45 01", but "Hering" and "Kohtenblatt 3".
+// (services/Names.kt), a variant's name is included if it has one: "Seil 15 m" and "Kohtenplane 45 cm Latz K45 01", but
+// "Hering" and "Kohtenblatt 3".
 
-/** A material with its variants, as far as needed for names. */
-type Named = Pick<Material, 'name'> & { variants: readonly Pick<Variant, 'name'>[] };
-
-/** E.g. "Seil 15 m"; just the material's name if it has a single variant. */
-export function variantName(material: Named, variant: Pick<Variant, 'name'>): string {
-	return material.variants.length > 1 && variant.name
-		? `${material.name} ${variant.name}`
-		: material.name;
+/** E.g. "Seil 15 m"; just the material's name for an unnamed variant. */
+export function variantName(
+	material: Pick<Material, 'name'>,
+	variant: Pick<Variant, 'name'>
+): string {
+	return variant.name ? `${material.name} ${variant.name}` : material.name;
 }
 
-/** E.g. "Kohtenplane 45 cm Latz K45 01", or "Kohtenblatt 3" if the material has a single variant. */
+/** E.g. "Kohtenplane 45 cm Latz K45 01", or "Kohtenblatt 3" for an unnamed variant. */
 export function itemName(
-	material: Named,
+	material: Pick<Material, 'name'>,
 	variant: Pick<Variant, 'name'>,
 	item: Pick<IndividualItem, 'identifier'>
 ): string {

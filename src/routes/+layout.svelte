@@ -41,14 +41,18 @@
 	function isActive(path: string) {
 		const relative = page.url.pathname.slice(`/${tenant?.slug}`.length);
 		return path === ''
-			? relative === '' || relative === '/' || relative.startsWith('/materials')
+			? relative === '' ||
+					relative === '/' ||
+					relative.startsWith('/materials') ||
+					relative.startsWith('/report')
 			: relative.startsWith(path);
 	}
 </script>
 
 <ModeWatcher />
 
-<div class="min-h-screen bg-background">
+<!-- White on paper, also in dark mode (see app.css), for prints with background graphics on. -->
+<div class="min-h-screen bg-background print:bg-white">
 	<header class="sticky top-0 z-50 border-b bg-background/95 backdrop-blur print:hidden">
 		<div class="container mx-auto flex h-14 items-center gap-4 px-4">
 			<!-- The Stamm reads as the context of the pages, like a breadcrumb after the logo, not as one of them. -->

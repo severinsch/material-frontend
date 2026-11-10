@@ -132,7 +132,9 @@
 		const request = kit
 			? api.PUT('/kits/{id}', { params: { path: { id: kit.id } }, body })
 			: api.POST('/kits', { body });
-		await mutate(request, `${form.name} gespeichert`, { redirectTo: tenant.href('/kits') });
+		await mutate(request, (saved) => `${saved.name} gespeichert`, {
+			redirectTo: tenant.href('/kits')
+		});
 		saving = false;
 	}
 

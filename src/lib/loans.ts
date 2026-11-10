@@ -13,7 +13,7 @@ export function isAvailableItem(item: IndividualItem): boolean {
 
 /**
  * What was lent, sorted by name, e.g. "30× Hering, 2× Jurtenfenster (3, 4), 4× Seil 15 m". Specific items are listed
- * with their identifiers, quantities without.
+ * with their identifiers, quantities without. Archived materials are marked, e.g. "2× Kohte (archiviert: 1, 2)".
  *
  * @param variants the variants by id with their material, see `variantsById`
  */
@@ -23,9 +23,10 @@ export function loanContents(
 	items: ReadonlyMap<string, IndividualItem>
 ): string {
 	const nameOf = (variantId: string) => variantNameOf(variants, variantId);
+	const isArchived = (variantId: string) => !!variants.get(variantId)?.material.archivedAt;
 	const lent = loan.materials.map((line) => ({
 		name: nameOf(line.variantId),
-		text: `${line.quantity}× ${nameOf(line.variantId)}`
+		text: `${line.quantity}× ${nameOf(line.variantId)}${isArchived(line.variantId) ? ' (archiviert)' : ''}`
 	}));
 	const known = loan.itemIds.map((id) => items.get(id)).filter((item) => item !== undefined);
 	for (const [variantId, lentItems] of Map.groupBy(known, (item) => item.variantId)) {
@@ -33,7 +34,11 @@ export function loanContents(
 			.map((item) => item.identifier)
 			.sort((a, b) => a.localeCompare(b, undefined, { numeric: true }));
 		const name = nameOf(variantId);
-		lent.push({ name, text: `${identifiers.length}× ${name} (${identifiers.join(', ')})` });
+		const archived = isArchived(variantId) ? 'archiviert: ' : '';
+		lent.push({
+			name,
+			text: `${identifiers.length}× ${name} (${archived}${identifiers.join(', ')})`
+		});
 	}
 	const unknown = loan.itemIds.length - known.length;
 	const texts = lent

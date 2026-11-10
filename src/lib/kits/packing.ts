@@ -1,6 +1,7 @@
 import type { IndividualItem, Kit, KitGroup, KitGroupOption, Material } from '#lib/api/index.js';
 import {
 	activePins,
+	isPinnable,
 	optionId,
 	sortedOptions,
 	type GroupShortage,
@@ -49,8 +50,7 @@ export function newLine(kit: Kit, quantity = 1): PackingLine {
  * non-default choices `*<group index>-<amount index>.<group index>-<amount index>…` and the pins
  * `*<group index>-<option id>.…` if there are any (`<kit id>*2**6-<option id>` for pins without choices). `*`, `-`
  * and `.` stay unencoded in URLs. Unknown kits, malformed values, and choices or pins that don't exist in the kit are
- * ignored. Pins of groups without a choice of options are ignored too; pins of a group packed without ("ohne") are
- * kept, so choosing "mit" again restores them.
+ * ignored, and so are pins of groups that can't be pinned (see `isPinnable`).
  */
 export function parseSelection(
 	params: Pick<URLSearchParams, 'getAll'>,
@@ -77,7 +77,11 @@ export function parseSelection(
 			const groupIndex = separator > 0 ? Number(pin.slice(0, separator)) : NaN;
 			const id = pin.slice(separator + 1);
 			const group = Number.isInteger(groupIndex) ? kit.groups[groupIndex] : undefined;
-			if (group && group.options.length > 1 && group.options.some((o) => optionId(o) === id)) {
+			if (
+				group &&
+				isPinnable({ kit, choices: line.choices }, groupIndex) &&
+				group.options.some((o) => optionId(o) === id)
+			) {
 				line.pins[groupIndex] = id;
 			}
 		}

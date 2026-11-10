@@ -88,9 +88,8 @@ export function sortedOptions(group: KitGroup): KitGroupOption[] {
 }
 
 /**
- * The option each group of [selection] is pinned to, or undefined for automatic. A pin counts only if it names one of
- * the group's several options and the chosen amount isn't 0; others are kept on the line (choosing "mit" again
- * restores a pin of the windows) but ignored.
+ * The option each group of [selection] is pinned to, or undefined for automatic. A pin counts only if the group can be
+ * pinned (see [isPinnable]) and it names one of the group's options.
  */
 export function activePins(
 	selection: Omit<KitSelection, 'quantity'>

@@ -1,17 +1,13 @@
 <script lang="ts">
-	import { mutate, type Kit, type Material } from '#lib/api/index.js';
+	import { mutate, type Material } from '#lib/api/index.js';
 	import { variantName, variantsError as variantNamesError } from '#lib/format.js';
-	import { kitsAfterMerge, suggestMerge } from '#lib/merge.js';
+	import { suggestMerge } from '#lib/merge.js';
 	import { getTenant } from '#lib/tenant.js';
-	import * as Alert from '#lib/components/ui/alert/index.js';
 	import { Input } from '#lib/components/ui/input/index.js';
 	import { Label } from '#lib/components/ui/label/index.js';
 	import Field from './Field.svelte';
 	import FormDialog from './FormDialog.svelte';
 	import SelectField from './SelectField.svelte';
-
-	/** [kits] are the tenant's kits, to show which of them use the materials. */
-	let { kits }: { kits: Kit[] } = $props();
 
 	const tenant = getTenant();
 	const api = $derived(tenant.api);
@@ -55,15 +51,6 @@
 			.join(', ')
 	);
 
-	const usedIn = $derived(kitsAfterMerge(kits, materials));
-
-	/** E.g. "Jurte", "Jurte und Kohte", "Jurte, Kohte und Lager". */
-	function enumerate(names: string[]): string {
-		return names.length < 2
-			? names.join('')
-			: `${names.slice(0, -1).join(', ')} und ${names[names.length - 1]}`;
-	}
-
 	/** Opens the dialog for [materials] (at least two of the same tracking type), the first as the target. */
 	export function show(toMerge: Material[]) {
 		selected = toMerge;
@@ -85,7 +72,7 @@
 
 	async function merge() {
 		submitted = true;
-		if (variantsError || usedIn.blocked.length > 0) return false;
+		if (variantsError) return false;
 		const merged = name.trim();
 		return mutate(
 			api.POST('/materials/merge', {
@@ -103,10 +90,10 @@
 
 <FormDialog
 	bind:open
+	values={{ targetId, name, variantNames }}
 	title="Materialien zusammenführen"
 	description="Die Materialien werden zu Varianten eines Materials, z. B. Seil mit 10 m, 15 m und 20 m. Bestand, Gegenstände, Einkäufe und Ausleihen bleiben bei ihrer Variante."
 	submitLabel="Zusammenführen"
-	submitDisabled={usedIn.blocked.length > 0}
 	class="sm:max-w-lg"
 	onsubmit={merge}
 >
@@ -171,30 +158,6 @@
 			<span class="text-muted-foreground">Ergebnis:</span>
 			<span class="font-medium">{name.trim() || '…'}</span>: {preview}
 		</p>
-		{#if usedIn.same.length > 0}
-			<p class="text-muted-foreground">
-				Verwendet {usedIn.same.length === 1 ? 'im Set' : 'in den Sets'}
-				{enumerate(usedIn.same)}. {usedIn.same.length === 1 ? 'Es verwendet' : 'Sie verwenden'} danach
-				genau dieselben Varianten wie bisher.
-			</p>
-		{/if}
-		{#if usedIn.widened.length > 0}
-			<p class="text-muted-foreground">
-				{usedIn.widened.length === 1 ? 'Im Set' : 'In den Sets'}
-				{enumerate(usedIn.widened)} steht „{target.name} (beliebige Variante)“; dort passen danach auch
-				die neuen Varianten.
-			</p>
-		{/if}
 		<p class="text-muted-foreground">Das Zusammenführen lässt sich nicht rückgängig machen.</p>
 	</div>
-	{#if usedIn.blocked.length > 0}
-		<Alert.Root variant="destructive">
-			<Alert.Title>Zusammenführen nicht möglich</Alert.Title>
-			<Alert.Description>
-				{#each usedIn.blocked as message (message)}
-					<p>{message}</p>
-				{/each}
-			</Alert.Description>
-		</Alert.Root>
-	{/if}
 </FormDialog>

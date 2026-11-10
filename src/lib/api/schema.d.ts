@@ -950,7 +950,8 @@ export interface paths {
         post?: never;
         /**
          * Delete a material with its variants. Only possible while nothing references them (items, purchases, kits,
-         *     loans).
+         *     loans). If items, purchases or loans are in the way, the error has the code `ARCHIVE_INSTEAD`, and clients
+         *     can offer to archive the material instead (if it isn't archived already).
          */
         delete: {
             parameters: {
@@ -999,7 +1000,7 @@ export interface paths {
                         "application/json": components["schemas"]["ErrorResponse"];
                     };
                 };
-                /** @description The material is still in use. */
+                /** @description The material is still in use, with the code ARCHIVE_INSTEAD unless it is used in a kit. */
                 409: {
                     headers: {
                         [name: string]: unknown;
@@ -1010,6 +1011,153 @@ export interface paths {
                 };
             };
         };
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/tenants/{tenantId}/materials/{id}/archive": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Archive a material that is no longer in use, e.g. sold or worn out. It keeps its history and is still
+         *     listed (with `archivedAt`); clients hide it where new use starts. A material used in a kit can't be
+         *     archived. Archiving an archived material changes nothing. Responds with the material.
+         */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    /** @description The tenant id. */
+                    tenantId: string;
+                    /** @description The material id. */
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Material"];
+                    };
+                };
+                /** @description No valid session; log in again. */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Requires the permission EDIT in the tenant. */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description No material with this id. */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description The material is used in a kit (named in the message). */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/tenants/{tenantId}/materials/{id}/unarchive": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Take a material out of the archive. Responds with the material. */
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    /** @description The tenant id. */
+                    tenantId: string;
+                    /** @description The material id. */
+                    id: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: never;
+            responses: {
+                200: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["Material"];
+                    };
+                };
+                /** @description No valid session; log in again. */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Requires the permission EDIT in the tenant. */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description No material with this id. */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
         options?: never;
         head?: never;
         patch?: never;
@@ -1090,7 +1238,7 @@ export interface paths {
                         "application/json": components["schemas"]["ErrorResponse"];
                     };
                 };
-                /** @description A material or variant no longer exists (deleted or merged meanwhile), the name is taken, or a kit uses a merged material with any variant in a way the merge would change (named in the message). */
+                /** @description A material or variant no longer exists (deleted or merged meanwhile), a material is archived, or the name is taken. */
                 409: {
                     headers: {
                         [name: string]: unknown;
@@ -2385,6 +2533,15 @@ export interface paths {
                         "application/json": components["schemas"]["Kit"];
                     };
                 };
+                /** @description Same as for creating a kit. */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
                 /** @description No valid session; log in again. */
                 401: {
                     headers: {
@@ -2405,6 +2562,15 @@ export interface paths {
                 };
                 /** @description No kit with this id. */
                 404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Same as for creating a kit. */
+                409: {
                     headers: {
                         [name: string]: unknown;
                     };
@@ -2669,7 +2835,7 @@ export interface paths {
         };
         /**
          * Replace a loan including its items. Set `returnedAt` to mark it as returned. Without the permission EDIT
-         *     only the user's own open loans, and they stay theirs.
+         *     only the user's own loans (returned ones too), and they stay theirs.
          */
         put: {
             parameters: {
@@ -3728,6 +3894,8 @@ export interface components {
         /** ErrorResponse */
         ErrorResponse: {
             message: string;
+            /** @enum {string|null} */
+            code?: "ARCHIVE_INSTEAD" | null;
         };
         /** SessionToken */
         SessionToken: {
@@ -3819,6 +3987,8 @@ export interface components {
             name: string;
             category?: string | null;
             description?: string | null;
+            /** Format: date-time */
+            archivedAt?: string | null;
             availableCount: number;
             damagedCount: number;
             loanedCount: number;
@@ -3845,6 +4015,8 @@ export interface components {
             name: string;
             category?: string | null;
             description?: string | null;
+            /** Format: date-time */
+            archivedAt?: string | null;
             availableCount: number;
             damagedCount: number;
             loanedCount: number;

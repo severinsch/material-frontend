@@ -27,11 +27,17 @@
 		const request = id
 			? api.PUT('/locations/{id}', { params: { path: { id } }, body })
 			: api.POST('/locations', { body });
-		return mutate(request, `${form.name} gespeichert`);
+		return mutate(request, (saved) => `${saved.name} gespeichert`);
 	}
 </script>
 
-<FormDialog bind:open {title} submitLabel={id ? 'Speichern' : 'Anlegen'} onsubmit={save}>
+<FormDialog
+	bind:open
+	values={form}
+	{title}
+	submitLabel={id ? 'Speichern' : 'Anlegen'}
+	onsubmit={save}
+>
 	<Field label="Name" id="location-name">
 		<Input
 			id="location-name"

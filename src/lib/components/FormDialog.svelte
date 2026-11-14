@@ -3,7 +3,8 @@
 	import LoaderIcon from '@lucide/svelte/icons/loader-circle';
 	import { Button } from '#lib/components/ui/button/index.js';
 	import * as Dialog from '#lib/components/ui/dialog/index.js';
-	import ConfirmDialog from './ConfirmDialog.svelte';
+	import { ChangeGuard } from './change-guard.svelte.js';
+	import ConfirmDiscard from './ConfirmDiscard.svelte';
 
 	let {
 		open = $bindable(false),
@@ -33,50 +34,18 @@
 		children?: Snippet;
 	} = $props();
 
-	let saving = $state(false);
-	let confirmingDiscard = $state(false);
-	/** [values] as they were when the dialog opened. */
-	let initialValues = '';
-
-	const serialize = (value: unknown) => JSON.stringify($state.snapshot(value)) ?? '';
+	const guard = new ChangeGuard(() => values);
 
 	// Dialogs set their values before opening, so they are complete by the time this runs.
 	$effect(() => {
-		if (!open) return;
-		initialValues = untrack(() => serialize(values));
-		confirmingDiscard = false;
+		if (open) untrack(() => guard.start());
 	});
-
-	/**
-	 * Keeps the dialog open on Escape or a tap outside if there are unsaved changes, and asks whether to discard them.
-	 * "Abbrechen" and the close button discard without asking, since they say so.
-	 */
-	function guardChanges(event: Event) {
-		if (saving) {
-			event.preventDefault();
-		} else if (serialize(values) !== initialValues) {
-			event.preventDefault();
-			confirmingDiscard = true;
-		}
-	}
-
-	function discard() {
-		confirmingDiscard = false;
-		open = false;
-	}
 
 	function submit(event: SubmitEvent) {
 		event.preventDefault();
-		void save();
-	}
-
-	async function save() {
-		saving = true;
-		try {
-			if (await onsubmit()) open = false;
-		} finally {
-			saving = false;
-		}
+		void guard.save(onsubmit).then((done) => {
+			if (done) open = false;
+		});
 	}
 </script>
 
@@ -84,8 +53,9 @@
 	<!-- dvh: on phones, the browser's bars don't hide the bottom of the dialog. -->
 	<Dialog.Content
 		class="max-h-[calc(100dvh-2rem)] overflow-y-auto {className ?? ''}"
-		onEscapeKeydown={guardChanges}
-		onInteractOutside={guardChanges}
+		showCloseButton={!guard.saving}
+		onEscapeKeydown={guard.intercept}
+		onInteractOutside={guard.intercept}
 	>
 		<form onsubmit={submit} class="grid gap-4">
 			<Dialog.Header>
@@ -101,24 +71,24 @@
 			<Dialog.Footer
 				class="sticky -bottom-4 z-10 bg-popover bg-linear-to-r from-muted/50 to-muted/50"
 			>
-				<Button variant="outline" type="button" onclick={() => (open = false)} disabled={saving}>
+				<Button
+					variant="outline"
+					type="button"
+					onclick={() => (open = false)}
+					disabled={guard.saving}
+				>
 					Abbrechen
 				</Button>
-				<Button type="submit" variant={destructive ? 'destructive' : 'default'} disabled={saving}>
-					{#if saving}<LoaderIcon class="animate-spin" />{/if}
+				<Button
+					type="submit"
+					variant={destructive ? 'destructive' : 'default'}
+					disabled={guard.saving}
+				>
+					{#if guard.saving}<LoaderIcon class="animate-spin" />{/if}
 					{submitLabel}
 				</Button>
 			</Dialog.Footer>
 		</form>
-		<!-- Nested in the dialog, which keeps it open and its focus trapped while asking. -->
-		<ConfirmDialog
-			bind:open={confirmingDiscard}
-			title="Änderungen verwerfen?"
-			description="Was du eingegeben hast, geht verloren."
-			cancelLabel="Weiter bearbeiten"
-			confirmLabel="Verwerfen"
-			destructive
-			onconfirm={discard}
-		/>
+		<ConfirmDiscard {guard} ondiscard={() => (open = false)} />
 	</Dialog.Content>
 </Dialog.Root>

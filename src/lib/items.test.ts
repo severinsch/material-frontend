@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
-import type { ItemStatus } from '#lib/api/index.js';
-import { isRetired, retiredToggleLabel, visibleItems } from './items.js';
+import type { IndividualItem, ItemStatus } from '#lib/api/index.js';
+import { isRetired, itemUpdate, retiredToggleLabel, visibleItems } from './items.js';
 
 const item = (id: string, status: ItemStatus) => ({ id, status });
 const items = [
@@ -51,5 +51,33 @@ describe('retiredToggleLabel', () => {
 			'Ausgemusterte und verlorene anzeigen (3)'
 		);
 		expect(retiredToggleLabel({ hidden: 0 }, true)).toBe('Ausgemusterte und verlorene ausblenden');
+	});
+});
+
+describe('itemUpdate', () => {
+	const loaded: IndividualItem = {
+		id: 'k03',
+		materialId: 'kohte',
+		variantId: 'kohte-v',
+		identifier: 'K03',
+		condition: 'FAIR',
+		status: 'IN_REPAIR',
+		storageLocation: { id: 'keller', name: 'Keller' },
+		purchaseDate: '2022-05-01',
+		onLoan: false,
+		hasHistory: true
+	};
+
+	it('sends all values back with the changes, missing ones as null', () => {
+		expect(itemUpdate(loaded, { status: 'ACTIVE' })).toEqual({
+			variantId: 'kohte-v',
+			identifier: 'K03',
+			condition: 'FAIR',
+			status: 'ACTIVE',
+			storageLocationId: 'keller',
+			locationDetail: null,
+			purchasePrice: null,
+			purchaseDate: '2022-05-01'
+		});
 	});
 });

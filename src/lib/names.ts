@@ -35,3 +35,9 @@ export function suggestSlug(name: string): string {
 		.slice(0, 50)
 		.replace(/-+$/, '');
 }
+
+/** Initials for an avatar, e.g. "Max Müller" → "MM", "Lena" → "LE". */
+export function initials(displayName: string): string {
+	const words = displayName.trim().split(/\s+/);
+	return (words.length > 1 ? words[0][0] + words.at(-1)![0] : words[0].slice(0, 2)).toUpperCase();
+}

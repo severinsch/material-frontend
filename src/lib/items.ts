@@ -1,8 +1,26 @@
-import type { IndividualItem } from '#lib/api/index.js';
+import type { IndividualItem, NewIndividualItem } from '#lib/api/index.js';
 
 /** Whether [item] is no longer part of the stock: decommissioned or lost. Such items stay for their history. */
 export function isRetired(item: Pick<IndividualItem, 'status'>): boolean {
 	return item.status === 'DECOMMISSIONED' || item.status === 'LOST';
+}
+
+/** The body to update [item] with [changes], e.g. `{ status: 'ACTIVE' }`: the API replaces all its values. */
+export function itemUpdate(
+	item: IndividualItem,
+	changes: Partial<NewIndividualItem> = {}
+): NewIndividualItem {
+	return {
+		variantId: item.variantId,
+		identifier: item.identifier,
+		condition: item.condition,
+		status: item.status,
+		storageLocationId: item.storageLocation?.id ?? null,
+		locationDetail: item.locationDetail ?? null,
+		purchasePrice: item.purchasePrice ?? null,
+		purchaseDate: item.purchaseDate ?? null,
+		...changes
+	};
 }
 
 /** Which items of a list are shown, see [visibleItems]. */

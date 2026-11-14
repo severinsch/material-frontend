@@ -1,5 +1,6 @@
 <script lang="ts">
 	import CheckIcon from '@lucide/svelte/icons/check';
+	import CircleAlertIcon from '@lucide/svelte/icons/circle-alert';
 	import CopyIcon from '@lucide/svelte/icons/copy';
 	import CopyPlusIcon from '@lucide/svelte/icons/copy-plus';
 	import ListChecksIcon from '@lucide/svelte/icons/list-checks';
@@ -40,6 +41,7 @@
 		type PackingLine
 	} from '#lib/kits/packing.js';
 	import { availableNow, settings } from '#lib/settings.svelte.js';
+	import { materialIdsOf, targetsOf } from '#lib/tasks.js';
 	import { getTenant } from '#lib/tenant.js';
 	import { Badge } from '#lib/components/ui/badge/index.js';
 	import { Button } from '#lib/components/ui/button/index.js';
@@ -137,6 +139,20 @@
 			})
 			.sort((a, b) => a.materialName.localeCompare(b.materialName) || a.rank - b.rank);
 	});
+	/**
+	 * Titles of urgent open tasks per material, also for tasks about one of its items: a quiet hint while packing,
+	 * e.g. "Kohte K03 reparieren". Built once, so the packing list itself isn't slowed down.
+	 */
+	const urgentByMaterial = $derived.by(() => {
+		const targets = targetsOf(data.materials, data.items);
+		return Map.groupBy(
+			data.urgentTasks.flatMap((task) =>
+				materialIdsOf(task, targets).map((materialId) => ({ materialId, title: task.title }))
+			),
+			(entry) => entry.materialId
+		);
+	});
+
 	const shortages = $derived(
 		allocation.shortages.map((shortage) =>
 			describeShortage(shortage, combined[shortage.line], labels[shortage.line], optionName)
@@ -687,7 +703,24 @@
 							{#each needs as need (need.key)}
 								<li class={need.missing > 0 ? 'text-destructive' : ''}>
 									<div class="flex justify-between gap-2">
-										<span><span class="tabular-nums">{need.required}×</span> {need.name}</span>
+										<span
+											><span class="tabular-nums">{need.required}×</span>
+											{need.name}
+											{#if urgentByMaterial.has(need.materialId)}
+												{@const titles = urgentByMaterial
+													.get(need.materialId)!
+													.map((entry) => entry.title)
+													.join(', ')}
+												<a
+													href={tenant.href('/tasks')}
+													class="relative ml-0.5 inline-flex align-text-bottom text-destructive/70 hover:text-destructive pointer-coarse:after:absolute pointer-coarse:after:-inset-4"
+													title="Dringende Aufgabe offen: {titles}"
+												>
+													<CircleAlertIcon class="size-3.5" />
+													<span class="sr-only">Dringende Aufgabe offen: {titles}</span>
+												</a>
+											{/if}</span
+										>
 										<span
 											class="shrink-0 text-xs tabular-nums {need.missing > 0
 												? 'font-medium'

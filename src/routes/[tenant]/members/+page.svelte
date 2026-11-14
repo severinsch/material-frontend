@@ -47,12 +47,7 @@
 
 <div class="space-y-4">
 	<div class="flex items-center justify-between gap-4">
-		<div>
-			<h1 class="text-2xl font-bold tracking-tight">Mitglieder</h1>
-			<p class="text-muted-foreground">
-				Wer auf das Material von {tenant.tenant.name} zugreifen kann.
-			</p>
-		</div>
+		<h1 class="text-2xl font-bold tracking-tight">Mitglieder</h1>
 		{#if canManage}
 			<Button onclick={() => memberDialog.show()}><PlusIcon />Konto anlegen</Button>
 		{/if}

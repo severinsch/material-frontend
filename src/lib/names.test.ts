@@ -1,5 +1,5 @@
 import { describe, expect, it } from 'vitest';
-import { SLUG_PATTERN, suggestSlug, suggestUsername, USERNAME_PATTERN } from './names.js';
+import { initials, SLUG_PATTERN, suggestSlug, suggestUsername, USERNAME_PATTERN } from './names.js';
 
 describe('suggestUsername', () => {
 	it('turns names into valid usernames', () => {
@@ -16,5 +16,13 @@ describe('suggestSlug', () => {
 		expect(suggestSlug(' Langenbach – Süd! ')).toBe('langenbach-sued');
 		expect(suggestSlug('x'.repeat(49) + ' y')).toBe('x'.repeat(49));
 		expect(new RegExp(`^${SLUG_PATTERN}$`).test(suggestSlug('Stamm St. Georg'))).toBe(true);
+	});
+});
+
+describe('initials', () => {
+	it('takes the first and last word, or the start of a single one', () => {
+		expect(initials('Max Müller')).toBe('MM');
+		expect(initials('Anna von der Heide')).toBe('AH');
+		expect(initials(' lena ')).toBe('LE');
 	});
 });

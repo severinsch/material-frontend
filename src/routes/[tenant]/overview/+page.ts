@@ -8,17 +8,22 @@ export const load: PageLoad = async ({ fetch, url, parent }) => {
 	// Shows all open loans, which only editors see.
 	if (!hasPermission(tenant.role, 'EDIT')) error(403, 'Dafür fehlt dir die Berechtigung.');
 	const api = createTenantApi(tenant.id, fetch, url);
-	const [loans, materials, items, damages] = await Promise.all([
+	const [loans, materials, items, damages, tasks, members] = await Promise.all([
 		unwrap(api.GET('/loans', { params: { query: { open: true } } })),
 		unwrap(api.GET('/materials')),
 		unwrap(api.GET('/items')),
-		unwrap(api.GET('/damages'))
+		unwrap(api.GET('/damages')),
+		// All of them, for the history shown when a task is opened.
+		unwrap(api.GET('/tasks')),
+		unwrap(api.GET('/members'))
 	]);
 	return {
 		// Earliest due date first, loans without one last.
 		loans: loans.toSorted((a, b) => (a.dueAt ?? '9999').localeCompare(b.dueAt ?? '9999')),
 		materials,
 		items,
+		tasks,
+		members,
 		openDamages: damages.filter((report) => report.resolvedAt == null)
 	};
 };

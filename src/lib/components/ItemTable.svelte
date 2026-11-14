@@ -11,7 +11,7 @@
 		type StorageLocation
 	} from '#lib/api/index.js';
 	import { conditionLabels, formatDate, itemName, statusLabels, variantOf } from '#lib/format.js';
-	import { isRetired, retiredToggleLabel, visibleItems } from '#lib/items.js';
+	import { isRetired, itemUpdate, retiredToggleLabel, visibleItems } from '#lib/items.js';
 	import { availableNow } from '#lib/settings.svelte.js';
 	import { getTenant } from '#lib/tenant.js';
 	import { Badge } from '#lib/components/ui/badge/index.js';
@@ -79,16 +79,7 @@
 		const put = (status: ItemStatus) =>
 			client.PUT('/items/{id}', {
 				params: { path: { id: item.id } },
-				body: {
-					variantId: item.variantId,
-					identifier: item.identifier,
-					condition: item.condition,
-					status,
-					storageLocationId: item.storageLocation?.id ?? null,
-					locationDetail: item.locationDetail,
-					purchasePrice: item.purchasePrice,
-					purchaseDate: item.purchaseDate
-				}
+				body: itemUpdate(item, { status })
 			});
 		return mutate(put(status), `${nameOf(item)}: ${statusLabels[status]}`, {
 			undo: () => put(item.status)

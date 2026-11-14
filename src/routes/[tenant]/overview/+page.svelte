@@ -5,10 +5,14 @@
 		formatDate,
 		itemNameOf,
 		statusLabels,
-		variantName,
-		variantsById
+		variantName
 	} from '#lib/format.js';
+	import ArrowRightIcon from '@lucide/svelte/icons/arrow-right';
 	import { isOverdue, loanContents } from '#lib/loans.js';
+	import { groupLabels, grouped } from '#lib/tasks.js';
+	import { provideTaskData } from '#lib/components/tasks/context.svelte.js';
+	import TaskDialogs from '#lib/components/tasks/TaskDialogs.svelte';
+	import TaskList from '#lib/components/tasks/TaskList.svelte';
 	import { getTenant } from '#lib/tenant.js';
 	import { Badge } from '#lib/components/ui/badge/index.js';
 	import * as Card from '#lib/components/ui/card/index.js';
@@ -17,8 +21,19 @@
 
 	const tenant = getTenant();
 
-	const variants = $derived(variantsById(data.materials));
-	const items = $derived(new Map(data.items.map((item) => [item.id, item])));
+	const taskData = provideTaskData(() => data);
+	let taskDialogs: TaskDialogs;
+	const openTasks = $derived(data.tasks.filter((t) => !t.completedAt));
+	/** Overdue and due in the next 2 weeks. */
+	const dueTasks = $derived(
+		grouped(openTasks).filter((g) => g.group === 'overdue' || g.group === 'soon')
+	);
+	const dueCount = $derived(dueTasks.reduce((sum, g) => sum + g.tasks.length, 0));
+	/** Due later or without a date. */
+	const otherTasks = $derived(openTasks.length - dueCount);
+
+	const variants = $derived(taskData.targets.variants);
+	const items = $derived(taskData.targets.items);
 
 	const overdueLoans = $derived(data.loans.filter(isOverdue));
 	const otherOpenLoans = $derived(data.loans.filter((loan) => !isOverdue(loan)));
@@ -103,12 +118,52 @@
 {/snippet}
 
 <div class="space-y-4">
-	<div>
-		<h1 class="text-2xl font-bold tracking-tight">Übersicht</h1>
-		<p class="text-muted-foreground">Was gerade Aufmerksamkeit braucht.</p>
-	</div>
+	<h1 class="text-2xl font-bold tracking-tight">Übersicht</h1>
 
 	<div class="grid gap-4 md:grid-cols-2">
+		<!-- Tasks first: the app is opened rarely, so what's due should be seen at once. -->
+		<Card.Root>
+			<Card.Header>
+				<Card.Title>
+					<h2>
+						<a href={tenant.href('/tasks')} class="hover:underline">Aufgaben</a>
+						<span class="text-muted-foreground tabular-nums">({dueCount})</span>
+					</h2>
+				</Card.Title>
+			</Card.Header>
+			<Card.Content class="space-y-3">
+				{#if dueCount === 0}
+					<p class="text-sm text-muted-foreground">In den nächsten 2 Wochen ist nichts fällig.</p>
+				{/if}
+				{#each dueTasks as { group, tasks } (group)}
+					<div class="space-y-1">
+						<h3
+							class={[
+								'text-xs font-medium',
+								group === 'overdue' ? 'text-destructive/80' : 'text-muted-foreground'
+							]}
+						>
+							{groupLabels[group]}
+						</h3>
+						<TaskList
+							groups={[{ group: null, tasks }]}
+							onopen={(task) => taskDialogs.show(task)}
+							oncheck={(task) => taskDialogs.check(task)}
+							dense
+						/>
+					</div>
+				{/each}
+				<p class="text-sm text-muted-foreground">
+					{#if otherTasks > 0}{otherTasks} weitere ·{/if}
+					<a
+						href={tenant.href('/tasks')}
+						class="inline-flex items-center gap-1 hover:text-foreground hover:underline"
+						>Alle Aufgaben<ArrowRightIcon class="size-3.5" /></a
+					>
+				</p>
+			</Card.Content>
+		</Card.Root>
+
 		{#snippet overdue()}
 			{#each overdueLoans as loan (loan.id)}
 				<li class="py-2">
@@ -220,3 +275,5 @@
 		)}
 	</div>
 </div>
+
+<TaskDialogs bind:this={taskDialogs} />

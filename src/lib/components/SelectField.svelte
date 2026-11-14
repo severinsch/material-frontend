@@ -7,9 +7,12 @@
 		options,
 		placeholder = 'Auswählen…',
 		invalid = false,
-		describedby
+		describedby,
+		label
 	}: {
 		id?: string;
+		/** The field's name for screen readers, if it has no visible label (`Field` with [id]). */
+		label?: string;
 		value: T;
 		options: { value: T; label: string }[];
 		placeholder?: string;
@@ -26,6 +29,7 @@
 		class="w-full"
 		aria-invalid={invalid || undefined}
 		aria-describedby={describedby}
+		aria-label={label}
 	>
 		{options.find((option) => option.value === value)?.label ?? placeholder}
 	</Select.Trigger>

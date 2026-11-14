@@ -4,6 +4,7 @@
 	import BoxesIcon from '@lucide/svelte/icons/boxes';
 	import HandshakeIcon from '@lucide/svelte/icons/handshake';
 	import LayoutDashboardIcon from '@lucide/svelte/icons/layout-dashboard';
+	import ListTodoIcon from '@lucide/svelte/icons/list-todo';
 	import MapPinIcon from '@lucide/svelte/icons/map-pin';
 	import PackageIcon from '@lucide/svelte/icons/package';
 	import { ModeWatcher } from 'mode-watcher';
@@ -22,11 +23,20 @@
 	const tenant = $derived(page.data.tenant as UserTenant | undefined);
 	const user = $derived(data.user);
 
-	const pages: { path: string; label: string; icon: Component; permission?: Permission }[] = [
+	const pages: {
+		path: string;
+		label: string;
+		icon: Component;
+		permission?: Permission;
+		/** Left out of the phone's bottom bar, which has room for five; reachable through links instead. */
+		desktopOnly?: boolean;
+	}[] = [
 		{ path: '', label: 'Materialien', icon: PackageIcon },
 		{ path: '/kits', label: 'Sets', icon: BoxesIcon },
 		{ path: '/loans', label: 'Ausleihen', icon: HandshakeIcon },
-		{ path: '/locations', label: 'Lagerorte', icon: MapPinIcon },
+		{ path: '/tasks', label: 'Aufgaben', icon: ListTodoIcon },
+		// Rarely needed; materials link to their location.
+		{ path: '/locations', label: 'Lagerorte', icon: MapPinIcon, desktopOnly: true },
 		{ path: '/overview', label: 'Übersicht', icon: LayoutDashboardIcon, permission: 'EDIT' }
 	];
 
@@ -37,6 +47,8 @@
 					.map((link) => ({ ...link, href: `/${tenant.slug}${link.path}` }))
 			: []
 	);
+
+	const phoneLinks = $derived(links.filter((link) => !link.desktopOnly));
 
 	function isActive(path: string) {
 		const relative = page.url.pathname.slice(`/${tenant?.slug}`.length);
@@ -102,9 +114,10 @@
 		<!-- On phones the navigation sits at the bottom, within reach of the thumb. -->
 		<nav
 			aria-label="Hauptnavigation"
-			class="fixed inset-x-0 bottom-0 z-50 grid h-16 grid-cols-5 border-t bg-background/95 backdrop-blur sm:hidden print:hidden"
+			class="fixed inset-x-0 bottom-0 z-50 grid h-16 border-t bg-background/95 backdrop-blur sm:hidden print:hidden"
+			style="grid-template-columns: repeat({phoneLinks.length}, minmax(0, 1fr))"
 		>
-			{#each links as link (link.href)}
+			{#each phoneLinks as link (link.href)}
 				<a
 					href={link.href}
 					aria-current={isActive(link.path) ? 'page' : undefined}

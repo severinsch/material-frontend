@@ -6,22 +6,32 @@ export const load: PageLoad = async ({ fetch, url, params, parent }) => {
 	const { tenant } = await parent();
 	const api = createTenantApi(tenant.id, fetch, url);
 	const byMaterial = { params: { query: { materialId: params.id } } };
-	const [material, locations, items, purchases, damages, materials] = await Promise.all([
-		unwrap(api.GET('/materials/{id}', { params: { path: { id: params.id } } })),
-		unwrap(api.GET('/locations')),
-		unwrap(api.GET('/items', byMaterial)),
-		unwrap(api.GET('/purchases', byMaterial)),
-		unwrap(api.GET('/damages')),
-		// Only the material dialog for editors needs the others, for their categories.
-		hasPermission(tenant.role, 'EDIT') ? unwrap(api.GET('/materials')) : []
-	]);
+	const canEdit = hasPermission(tenant.role, 'EDIT');
+	const [material, locations, allItems, purchases, damages, materials, tasks, members] =
+		await Promise.all([
+			unwrap(api.GET('/materials/{id}', { params: { path: { id: params.id } } })),
+			unwrap(api.GET('/locations')),
+			// All of them: tasks can be about items of other materials too.
+			unwrap(api.GET('/items')),
+			unwrap(api.GET('/purchases', byMaterial)),
+			unwrap(api.GET('/damages')),
+			// For the material dialog's categories, and the names of what tasks are about.
+			unwrap(api.GET('/materials')),
+			unwrap(api.GET('/tasks', byMaterial)),
+			// Only editors assign tasks.
+			canEdit ? unwrap(api.GET('/members')) : []
+		]);
+	const items = allItems.filter((item) => item.materialId === params.id);
 	const itemIds = new Set(items.map((item) => item.id));
 	return {
 		material,
 		locations,
 		items,
+		allItems,
 		purchases,
 		materials,
+		tasks,
+		members,
 		damages: damages.filter((d) => itemIds.has(d.itemId))
 	};
 };

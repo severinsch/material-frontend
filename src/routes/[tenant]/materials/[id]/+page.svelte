@@ -1,6 +1,7 @@
 <script lang="ts">
 	import ArchiveRestoreIcon from '@lucide/svelte/icons/archive-restore';
 	import ArrowLeftIcon from '@lucide/svelte/icons/arrow-left';
+	import ListTodoIcon from '@lucide/svelte/icons/list-todo';
 	import PencilIcon from '@lucide/svelte/icons/pencil';
 	import PlusIcon from '@lucide/svelte/icons/plus';
 	import Trash2Icon from '@lucide/svelte/icons/trash-2';
@@ -21,8 +22,41 @@
 	import MaterialDialog from '#lib/components/MaterialDialog.svelte';
 	import PurchaseDialog from '#lib/components/PurchaseDialog.svelte';
 	import RowActions from '#lib/components/RowActions.svelte';
+	import { provideTaskData } from '#lib/components/tasks/context.svelte.js';
+	import TaskDialogs from '#lib/components/tasks/TaskDialogs.svelte';
+	import TaskList from '#lib/components/tasks/TaskList.svelte';
+	import { compareTasks, linkNames } from '#lib/tasks.js';
 
 	let { data } = $props();
+
+	const taskData = provideTaskData(() => ({
+		tasks: data.tasks,
+		materials: data.materials,
+		items: data.allItems,
+		members: data.members
+	}));
+	let taskDialogs: TaskDialogs;
+	let showAllDone = $state(false);
+	const openTasks = $derived(data.tasks.filter((t) => !t.completedAt).toSorted(compareTasks));
+	const doneTasks = $derived(
+		data.tasks
+			.filter((t) => t.completedAt)
+			.toSorted((a, b) => b.completedAt!.localeCompare(a.completedAt!))
+	);
+	/** Names of what a task is about, if that is more than this material itself (e.g. "Gaskocher 2"). */
+	function taskAbout(task: (typeof data.tasks)[number]) {
+		const others = {
+			materialIds: task.materialIds.filter((id) => id !== data.material.id),
+			itemIds: task.itemIds
+		};
+		return others.materialIds.length + others.itemIds.length
+			? linkNames(others, taskData.targets).join(', ')
+			: '';
+	}
+
+	function newTask() {
+		taskDialogs.create({ materialIds: [data.material.id] });
+	}
 
 	const tenant = getTenant();
 	const api = $derived(tenant.api);
@@ -145,11 +179,14 @@
 					<RowActions
 						name={material.name}
 						outline
-						actions={materialActions(api, material, {
-							ondelete: () => deleteDialog.show(material),
-							// The banner below offers it.
-							offerUnarchive: false
-						})}
+						actions={[
+							{ label: 'Aufgabe erstellen', icon: ListTodoIcon, onselect: newTask },
+							...materialActions(api, material, {
+								ondelete: () => deleteDialog.show(material),
+								// The banner below offers it.
+								offerUnarchive: false
+							})
+						]}
 					/>
 				</div>
 			{/if}
@@ -182,6 +219,64 @@
 		</dl>
 		<LoanedToggle />
 	</div>
+
+	<!-- Only shown when there is something to show; "Aufgabe erstellen" is in the ⋯ menu otherwise. -->
+	{#if data.tasks.length > 0}
+		<section class="space-y-2">
+			<div class="flex items-center justify-between">
+				<h2 class="text-lg font-semibold">
+					Aufgaben
+					{#if openTasks.length > 0}<span class="font-normal text-muted-foreground"
+							>({openTasks.length} offen)</span
+						>{/if}
+				</h2>
+				{#if canEdit}
+					<Button size="sm" variant="outline" onclick={newTask}><PlusIcon />Aufgabe</Button>
+				{/if}
+			</div>
+			{#if openTasks.length > 0}
+				<TaskList
+					groups={[{ group: null, tasks: openTasks }]}
+					onopen={(task) => taskDialogs.show(task)}
+					oncheck={(task) => taskDialogs.check(task)}
+					showLinks={openTasks.some((t) => taskAbout(t) !== '')}
+					dense
+				/>
+			{/if}
+			{#if doneTasks.length > 0}
+				<div class="space-y-1 pt-2">
+					<h3 class="text-sm font-medium text-muted-foreground">Zuletzt erledigt</h3>
+					<ul class="space-y-1 text-sm text-muted-foreground">
+						{#each showAllDone ? doneTasks : doneTasks.slice(0, 3) as task (task.id)}
+							{@const about = taskAbout(task)}
+							<li>
+								<button
+									type="button"
+									class="text-left hover:text-foreground"
+									onclick={() => taskDialogs.show(task)}
+								>
+									<span class="tabular-nums">{formatDate(task.completedAt)}</span> · {task.title}{about
+										? ` (${about})`
+										: ''} · {task.completedBy}{task.completionNote
+										? `: ${task.completionNote}`
+										: ''}
+								</button>
+							</li>
+						{/each}
+					</ul>
+					{#if doneTasks.length > 3}
+						<button
+							type="button"
+							class="text-sm text-muted-foreground hover:text-foreground hover:underline"
+							onclick={() => (showAllDone = !showAllDone)}
+						>
+							{showAllDone ? 'Weniger anzeigen' : `Alle anzeigen (${doneTasks.length})`}
+						</button>
+					{/if}
+				</div>
+			{/if}
+		</section>
+	{/if}
 
 	{#if several}
 		<section class="space-y-2">
@@ -279,6 +374,22 @@
 							onedit={() =>
 								damageDialog.show(items.get(report.itemId)!, reportName(report), report)}
 							actions={[
+								...(report.resolvedAt
+									? []
+									: [
+											{
+												label: 'Aufgabe erstellen',
+												icon: ListTodoIcon,
+												onselect: () =>
+													taskDialogs.create({
+														title: `Reparieren: ${reportName(report)}`,
+														note: report.description,
+														label: 'REPAIR',
+														itemIds: [report.itemId],
+														damageReportId: report.id
+													})
+											}
+										]),
 								{
 									label: 'Löschen',
 									icon: Trash2Icon,
@@ -373,3 +484,4 @@
 {/if}
 <ConfirmDelete bind:this={confirmDelete} />
 <DeleteMaterialDialog bind:this={deleteDialog} redirectTo={tenant.href('')} />
+<TaskDialogs bind:this={taskDialogs} />

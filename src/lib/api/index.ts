@@ -16,6 +16,8 @@ export type Variant = BulkVariant | IndividualVariant;
 export type NewMaterial = Schemas['NewMaterial'];
 export type IndividualItem = Schemas['IndividualItem'];
 export type NewIndividualItem = Schemas['NewIndividualItem'];
+export type NewQuickEntry = Schemas['NewQuickEntry'];
+export type QuickEntryResult = Schemas['QuickEntryResult'];
 export type ItemCondition = IndividualItem['condition'];
 export type ItemStatus = IndividualItem['status'];
 export type StorageLocation = Schemas['StorageLocation'];
@@ -150,13 +152,14 @@ export interface MutateOptions<T> {
 
 /**
  * Runs a change, reports the outcome as a toast and reloads the page data (or navigates, see [MutateOptions]).
- * [success] can be built from the response, e.g. to show a name as the API saved it (trimmed).
+ * [success] can be built from the response, e.g. to show a name as the API saved it (trimmed); null shows no toast,
+ * for pages that show the outcome themselves.
  * Returns whether it succeeded. If the session expired, the page stays as it is (e.g. with an open dialog) and the
  * toast offers to log in again in a new tab.
  */
 export async function mutate<T>(
 	request: Promise<ApiResult<T>>,
-	success: string | ((data: T) => string),
+	success: string | ((data: T) => string) | null,
 	{ redirectTo, undo, onSuccess, onError }: MutateOptions<T> = {}
 ): Promise<boolean> {
 	let data: T;
@@ -174,12 +177,14 @@ export async function mutate<T>(
 		}
 		return false;
 	}
-	toast.success(typeof success === 'string' ? success : success(data), {
-		action: undo && {
-			label: 'Rückgängig',
-			onClick: () => void mutate(undo(), 'Rückgängig gemacht')
-		}
-	});
+	if (success !== null) {
+		toast.success(typeof success === 'string' ? success : success(data), {
+			action: undo && {
+				label: 'Rückgängig',
+				onClick: () => void mutate(undo(), 'Rückgängig gemacht')
+			}
+		});
+	}
 	onSuccess?.(data);
 	await (redirectTo
 		? goto(typeof redirectTo === 'string' ? redirectTo : redirectTo(data))

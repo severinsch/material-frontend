@@ -1688,6 +1688,167 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/tenants/{tenantId}/quick-entries": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    /** @description The tenant id. */
+                    tenantId: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: {
+                content: {
+                    "application/json": components["schemas"]["NewQuickEntry"];
+                };
+            };
+            responses: {
+                201: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["QuickEntryResult"];
+                    };
+                };
+                /** @description Invalid entry, unknown variant or location, or the variant's type differs. */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description No valid session; log in again. */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Requires the permission EDIT in the tenant. */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description No tenant with this id, or the user has no access to it. */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description The name or an identifier is taken. */
+                409: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/tenants/{tenantId}/quick-entries/undo": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post: {
+            parameters: {
+                query?: never;
+                header?: never;
+                path: {
+                    /** @description The tenant id. */
+                    tenantId: string;
+                };
+                cookie?: never;
+            };
+            requestBody?: {
+                content: {
+                    "application/json": components["schemas"]["QuickEntryUndo"];
+                };
+            };
+            responses: {
+                204: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content?: never;
+                };
+                /** @description The items don't belong to the variant. */
+                400: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description No valid session; log in again. */
+                401: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description Requires the permission EDIT in the tenant. */
+                403: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+                /** @description The variant no longer exists. */
+                404: {
+                    headers: {
+                        [name: string]: unknown;
+                    };
+                    content: {
+                        "application/json": components["schemas"]["ErrorResponse"];
+                    };
+                };
+            };
+        };
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/tenants/{tenantId}/purchases": {
         parameters: {
             query?: never;
@@ -5306,6 +5467,37 @@ export interface components {
             purchasePrice?: number | null;
             /** Format: date */
             purchaseDate?: string | null;
+        };
+        /** NewQuickEntry */
+        NewQuickEntry: {
+            /** Format: uuid */
+            variantId?: string | null;
+            name?: string | null;
+            /** @enum {string} */
+            trackingType: "BULK" | "INDIVIDUAL";
+            count?: number | null;
+            identifiers?: string[] | null;
+            category?: string | null;
+            /** Format: uuid */
+            storageLocationId?: string | null;
+            locationDetail?: string | null;
+        };
+        /** QuickEntryResult */
+        QuickEntryResult: {
+            material: components["schemas"]["Material"];
+            /** Format: uuid */
+            variantId: string;
+            created: boolean;
+            count: number;
+            itemIds: string[];
+        };
+        /** QuickEntryUndo */
+        QuickEntryUndo: {
+            /** Format: uuid */
+            variantId: string;
+            created: boolean;
+            count: number;
+            itemIds?: string[];
         };
         /** Purchase */
         Purchase: {

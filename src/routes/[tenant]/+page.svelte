@@ -5,6 +5,7 @@
 	import ChevronDownIcon from '@lucide/svelte/icons/chevron-down';
 	import ChevronRightIcon from '@lucide/svelte/icons/chevron-right';
 	import ClipboardListIcon from '@lucide/svelte/icons/clipboard-list';
+	import ListPlusIcon from '@lucide/svelte/icons/list-plus';
 	import MergeIcon from '@lucide/svelte/icons/merge';
 	import PlusIcon from '@lucide/svelte/icons/plus';
 	import SearchIcon from '@lucide/svelte/icons/search';
@@ -331,6 +332,11 @@
 	<Table.Row>
 		<Table.Cell colspan={columns} class="py-8 text-center text-muted-foreground">
 			{emptyText}
+			{#if data.materials.length === 0 && canEdit}
+				<a href={tenant.href('/materials/quick')} class="text-primary hover:underline">
+					Mit der Schnellerfassung</a
+				> geht das Erfassen vieler Materialien schneller.
+			{/if}
 		</Table.Cell>
 	</Table.Row>
 {/snippet}
@@ -354,6 +360,10 @@
 						<MergeIcon />Zusammenführen
 					</Button>
 				{/if}
+				<!-- Several materials in a row, e.g. the first inventory; just the icon on phones. -->
+				<Button variant="outline" href={tenant.href('/materials/quick')} title="Schnellerfassung">
+					<ListPlusIcon /><span class="sr-only sm:not-sr-only">Schnellerfassung</span>
+				</Button>
 				<Button onclick={() => materialDialog.show()}><PlusIcon />Material anlegen</Button>
 			{/if}
 		</div>

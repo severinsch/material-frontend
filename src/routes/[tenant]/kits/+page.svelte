@@ -31,13 +31,19 @@
 		groupLabel,
 		hasAlternatives,
 		hasChoices,
+		isTent,
+		kitSleepingPlaces,
 		lineLabel,
 		NO_LOCATION,
 		newLine,
+		packingSummary,
 		parseSelection,
 		placeOf,
 		serializeSelection,
+		sleepingPlacesOf,
+		sleepingPlacesText,
 		variantsToFind,
+		weightOf,
 		type PackingLine
 	} from '#lib/kits/packing.js';
 	import { availableNow, settings } from '#lib/settings.svelte.js';
@@ -50,6 +56,7 @@
 	import * as Select from '#lib/components/ui/select/index.js';
 	import { Switch } from '#lib/components/ui/switch/index.js';
 	import LoanedToggle from '#lib/components/LoanedToggle.svelte';
+	import SleepingBadge from '#lib/components/SleepingBadge.svelte';
 
 	let { data } = $props();
 
@@ -168,6 +175,13 @@
 	const selectedSummary = $derived(
 		combined.map((line, index) => `${line.quantity}× ${labels[index]}`).join(', ')
 	);
+	/** Weight of one piece per variant id, if known. */
+	const weights = $derived(
+		new Map([...variants].map(([id, { variant }]) => [id, variant.weightGrams ?? null]))
+	);
+	const weight = $derived(weightOf(needs, weights, variantIds));
+	/** E.g. "65 Schlafplätze (eng 75) · 272 kg"; empty without tents and weights. */
+	const summary = $derived(packingSummary(sleepingPlacesOf(combined), weight));
 
 	type OptionRef = Pick<KitGroupOption, 'materialId' | 'variantId'>;
 
@@ -276,7 +290,8 @@
 			...line,
 			quantity: 1,
 			choices: [...line.choices],
-			pins: line.pins.map(() => null)
+			pins: line.pins.map(() => null),
+			notSleeping: 0
 		};
 		lines.splice(lines.indexOf(line) + 1, 0, copy);
 	}
@@ -304,8 +319,10 @@
 	}
 
 	function setQuantity(line: PackingLine, quantity: number) {
-		if (quantity > 0) line.quantity = quantity;
-		else {
+		if (quantity > 0) {
+			line.quantity = quantity;
+			line.notSleeping = Math.min(line.notSleeping, quantity);
+		} else {
 			lines.splice(lines.indexOf(line), 1);
 			revealed.delete(line);
 		}
@@ -318,6 +335,7 @@
 
 	function listText() {
 		const text = [`Packliste: ${selectedSummary}`];
+		if (summary) text.push(summary);
 		for (const [location, located] of needsByLocation) {
 			text.push('', location);
 			for (const need of located) {
@@ -399,7 +417,13 @@
 				<Card.Root>
 					<Card.Header>
 						<Card.Title>{kit.name}</Card.Title>
-						{#if kit.description}<Card.Description>{kit.description}</Card.Description>{/if}
+						{#if kit.description || isTent(kit)}
+							<Card.Description>
+								{[kit.description, sleepingPlacesText(kitSleepingPlaces(kit))]
+									.filter(Boolean)
+									.join(' · ')}
+							</Card.Description>
+						{/if}
 						{#if canEdit}
 							<Card.Action>
 								<Button
@@ -578,6 +602,15 @@
 									<li class="space-y-1.5">
 										<div class="flex items-center gap-1">
 											<span class="flex-1">{kit.name}</span>
+											<!-- A Jurte can be the kitchen; only tents for sleeping count towards the sleeping places. -->
+											{#if isTent(kit)}
+												<SleepingBadge
+													quantity={line.quantity}
+													notSleeping={line.notSleeping}
+													{label}
+													onchange={(n) => (line.notSleeping = n)}
+												/>
+											{/if}
 											{@render quantityButtons(line, label)}
 											<Button
 												variant="ghost"
@@ -670,6 +703,9 @@
 								{/if}
 							{/each}
 						</ul>
+						{#if summary}
+							<p class="mt-3 border-t pt-3 text-sm font-medium tabular-nums">{summary}</p>
+						{/if}
 					</Card.Content>
 				</Card.Root>
 
@@ -766,6 +802,7 @@
 	<header>
 		<h1 class="text-xl font-bold">Packliste vom {formatDate(today())}</h1>
 		<p>{selectedSummary}</p>
+		{#if summary}<p>{summary}</p>{/if}
 	</header>
 	{#if shortages.length > 0}
 		<div class="rounded border border-black p-2">

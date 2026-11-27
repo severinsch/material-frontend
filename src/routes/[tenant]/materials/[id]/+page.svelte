@@ -7,7 +7,14 @@
 	import Trash2Icon from '@lucide/svelte/icons/trash-2';
 	import { mutate, type BulkVariant, type DamageReport, type Purchase } from '#lib/api/index.js';
 	import { materialActions, setArchived } from '#lib/archive.js';
-	import { formatDate, formatPrice, itemName, trackingTypeLabels, variantOf } from '#lib/format.js';
+	import {
+		formatDate,
+		formatKg,
+		formatPrice,
+		itemName,
+		trackingTypeLabels,
+		variantOf
+	} from '#lib/format.js';
 	import { isAvailableItem } from '#lib/loans.js';
 	import { availableNow, settings } from '#lib/settings.svelte.js';
 	import { getTenant } from '#lib/tenant.js';
@@ -71,6 +78,9 @@
 		const [variant] = material.variants;
 		return variant?.location ? { ...variant.location, detail: variant.locationDetail } : undefined;
 	});
+	/** The weight of one piece of a single variant; several variants show theirs in the table if any has one. */
+	const pieceWeight = $derived(several ? null : (material.variants[0]?.weightGrams ?? null));
+	const variantWeights = $derived(several && material.variants.some((v) => v.weightGrams != null));
 	/** Open reports first, each group newest first (as returned by the API). */
 	const damages = $derived(
 		data.damages.toSorted((a, b) => Number(a.resolvedAt != null) - Number(b.resolvedAt != null))
@@ -169,6 +179,9 @@
 							class="underline-offset-4 hover:underline">{bulkLocation.name}</a
 						>{bulkLocation.detail ? `, ${bulkLocation.detail}` : ''}
 					</p>
+				{/if}
+				{#if pieceWeight != null}
+					<p class="text-sm text-muted-foreground">{formatKg(pieceWeight)} pro Stück</p>
 				{/if}
 			</div>
 			{#if canEdit}
@@ -293,6 +306,9 @@
 							{#if material.trackingType === 'BULK'}
 								<Table.Head class="hidden sm:table-cell">Lagerort</Table.Head>
 							{/if}
+							{#if variantWeights}
+								<Table.Head class="hidden text-right sm:table-cell">Gewicht</Table.Head>
+							{/if}
 						</Table.Row>
 					</Table.Header>
 					<Table.Body>
@@ -316,6 +332,11 @@
 										{:else}
 											—
 										{/if}
+									</Table.Cell>
+								{/if}
+								{#if variantWeights}
+									<Table.Cell class="hidden text-right tabular-nums sm:table-cell">
+										{variant.weightGrams != null ? formatKg(variant.weightGrams) : '—'}
 									</Table.Cell>
 								{/if}
 							</Table.Row>

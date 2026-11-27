@@ -12,6 +12,8 @@
 	} from '#lib/api/index.js';
 	import { categoriesOf, suggestCategories } from '#lib/categories.js';
 	import {
+		gramsToKg,
+		kgToGrams,
 		locationOptions,
 		optionsOf,
 		orNull,
@@ -73,6 +75,8 @@
 			name: variant?.name ?? '',
 			/** The saved name, for the confirmation when removing it. */
 			savedName: variant?.name ?? null,
+			/** In kg. */
+			weightKg: gramsToKg(variant?.weightGrams),
 			availableCount: variant?.availableCount ?? 0,
 			damagedCount: variant?.damagedCount ?? 0,
 			storageLocationId: stock ? (stock.location?.id ?? '') : location.storageLocationId,
@@ -203,6 +207,7 @@
 					variants: form.variants.map((variant) => ({
 						id: variant.id,
 						name: orNull(variant.name),
+						weightGrams: kgToGrams(variant.weightKg),
 						availableCount: variant.availableCount,
 						damagedCount: variant.damagedCount,
 						storageLocationId: orNull(location(variant).storageLocationId),
@@ -215,7 +220,8 @@
 					trackingType: 'INDIVIDUAL',
 					variants: form.variants.map((variant) => ({
 						id: variant.id,
-						name: orNull(variant.name)
+						name: orNull(variant.name),
+						weightGrams: kgToGrams(variant.weightKg)
 					}))
 				};
 	});
@@ -258,6 +264,18 @@
 			placeholder="z. B. Regal 3, Kiste 2"
 		/>
 	</Field>
+{/snippet}
+
+<!-- In kg, stored as whole grams; a piece weighs at least 1 g. -->
+{#snippet weightInput(variant: VariantForm, inputId: string)}
+	<Input
+		id={inputId}
+		type="number"
+		min={0.001}
+		max={1000}
+		step={0.001}
+		bind:value={variant.weightKg}
+	/>
 {/snippet}
 
 <FormDialog
@@ -317,7 +335,7 @@
 	{#if !listed}
 		{@const [variant] = form.variants}
 		{#if bulk}
-			<div class="grid grid-cols-2 gap-4">
+			<div class="grid grid-cols-2 items-end gap-4 sm:grid-cols-3">
 				<Field label="Bestand (einsatzbereit)" id="material-available">
 					<Input
 						id="material-available"
@@ -336,6 +354,9 @@
 						bind:value={variant.damagedCount}
 					/>
 				</Field>
+				<Field label="Gewicht (kg)" id="material-weight">
+					{@render weightInput(variant, 'material-weight')}
+				</Field>
 			</div>
 			{#if id}
 				<p class="text-sm text-muted-foreground">
@@ -343,6 +364,12 @@
 				</p>
 			{/if}
 			{@render locationFields(form, '')}
+		{:else}
+			<div class="grid grid-cols-2 items-end gap-4 sm:grid-cols-3">
+				<Field label="Gewicht (kg)" id="material-weight">
+					{@render weightInput(variant, 'material-weight')}
+				</Field>
+			</div>
 		{/if}
 		<div class="grid justify-items-start gap-2">
 			<p class="text-sm text-muted-foreground">
@@ -361,12 +388,17 @@
 				m“.
 				{#if bulk && id}Erfasste Einkäufe erhöhen den Bestand automatisch.{/if}
 			</p>
-			{#if bulk && !cards}
+			{#if !cards}
 				<div
-					class="hidden gap-2 text-xs font-medium text-muted-foreground sm:grid sm:grid-cols-[1fr_5rem_5rem_2rem]"
+					class={[
+						'hidden gap-2 text-xs font-medium text-muted-foreground sm:grid',
+						bulk ? 'sm:grid-cols-[1fr_5rem_5rem_5rem_2rem]' : 'sm:grid-cols-[1fr_5rem_2rem]'
+					]}
 					aria-hidden="true"
 				>
-					<span>Name</span><span>Bestand</span><span>Beschädigt</span>
+					<span>Name</span>
+					{#if bulk}<span>Bestand</span><span>Beschädigt</span>{/if}
+					<span>Gewicht (kg)</span>
 				</div>
 			{/if}
 			{#each form.variants as variant, v (variant)}
@@ -377,8 +409,8 @@
 						'grid gap-2 rounded-md border p-3',
 						!cards && 'sm:items-end sm:rounded-none sm:border-0 sm:p-0',
 						bulk
-							? ['grid-cols-2', !cards && 'sm:grid-cols-[1fr_5rem_5rem_2rem]']
-							: 'grid-cols-[1fr_2rem]'
+							? ['grid-cols-2', !cards && 'sm:grid-cols-[1fr_5rem_5rem_5rem_2rem]']
+							: 'grid-cols-[1fr_5rem_2rem] items-end'
 					]}
 				>
 					<div class={['grid gap-1', bulk && ['col-span-2', !cards && 'sm:col-span-1']]}>
@@ -439,6 +471,12 @@
 							/>
 						</div>
 					{/if}
+					<div class="grid gap-1">
+						<Label for="variant-{v}-weight" class={[!cards && 'sm:sr-only']}
+							>Gewicht (kg) <span class="sr-only">von {label}</span></Label
+						>
+						{@render weightInput(variant, `variant-${v}-weight`)}
+					</div>
 					<Button
 						variant="ghost"
 						size="icon"

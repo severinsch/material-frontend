@@ -1,7 +1,10 @@
 import { describe, expect, it } from 'vitest';
 import type { Material } from '#lib/api/index.js';
 import {
+	formatKg,
+	gramsToKg,
 	itemName,
+	kgToGrams,
 	itemNameOf,
 	variantName,
 	variantNameOf,
@@ -77,5 +80,24 @@ describe('variantsError', () => {
 			'Die Varianten eines Materials brauchen unterschiedliche Namen.'
 		);
 		expect(variantsError(['groß', 'Groß'])).toBeUndefined();
+	});
+});
+
+describe('weights', () => {
+	it('formats pieces exactly and totals rounded', () => {
+		expect(formatKg(2218)).toBe('2,218 kg');
+		expect(formatKg(26500)).toBe('26,5 kg');
+		expect(formatKg(271984, { total: true })).toBe('272 kg');
+		expect(formatKg(1234567, { total: true })).toBe('1.235 kg');
+		expect(formatKg(7420, { total: true })).toBe('7,4 kg');
+	});
+
+	it('converts between kg inputs and grams', () => {
+		expect(kgToGrams(2.218)).toBe(2218);
+		expect(kgToGrams(0.3)).toBe(300);
+		expect(kgToGrams(null)).toBeNull();
+		expect(kgToGrams(NaN)).toBeNull();
+		expect(gramsToKg(2218)).toBe(2.218);
+		expect(gramsToKg(null)).toBeNull();
 	});
 });

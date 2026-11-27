@@ -8,6 +8,7 @@ import {
 	type KitSelection,
 	type MaterialNeed
 } from './allocate.js';
+import { formatKg } from '#lib/format.js';
 import { isAvailableItem } from '#lib/loans.js';
 
 // Helpers for the packing list on the kits page: its state in the URL, labels of its lines, where to find materials,
@@ -17,12 +18,16 @@ import { isAvailableItem } from '#lib/loans.js';
  * A line of the packing list: a kit, its quantity, the chosen amount per group (an index into the group's `amounts`,
  * one entry per group, 0 is the default) and the option each group is pinned to (its `optionId`, null for
  * automatic). The same kit can be on several lines with different choices and pins.
+ *
+ * For tents, [notSleeping] of them aren't for sleeping (a Jurte as kitchen); it doesn't change what is packed. It
+ * counts the tents that aren't, so that adding tents to the line counts them as sleeping tents without syncing.
  */
 export interface PackingLine {
 	kitId: string;
 	quantity: number;
 	choices: number[];
 	pins: (string | null)[];
+	notSleeping: number;
 }
 
 /** Whether [kit] has a group with several amounts to choose from. */
@@ -41,16 +46,18 @@ export function newLine(kit: Kit, quantity = 1): PackingLine {
 		kitId: kit.id,
 		quantity,
 		choices: kit.groups.map(() => 0),
-		pins: kit.groups.map(() => null)
+		pins: kit.groups.map(() => null),
+		notSleeping: 0
 	};
 }
 
 /**
  * Reads the lines from `kit` query parameters, one per line, of the form `<kit id>*<quantity>`, followed by the
  * non-default choices `*<group index>-<amount index>.<group index>-<amount index>…` and the pins
- * `*<group index>-<option id>.…` if there are any (`<kit id>*2**6-<option id>` for pins without choices). `*`, `-`
- * and `.` stay unencoded in URLs. Unknown kits, malformed values, and choices or pins that don't exist in the kit are
- * ignored, and so are pins of groups that can't be pinned (see `isPinnable`).
+ * `*<group index>-<option id>.…` if there are any (`<kit id>*2**6-<option id>` for pins without choices), and the
+ * number of tents not for sleeping `*<count>` if there are any (`<kit id>*3***1`). `*`, `-` and `.` stay unencoded in
+ * URLs. Unknown kits, malformed values, and choices or pins that don't exist in the kit are ignored, and so are pins of
+ * groups that can't be pinned (see `isPinnable`). The number of tents not for sleeping is capped at the quantity.
  */
 export function parseSelection(
 	params: Pick<URLSearchParams, 'getAll'>,
@@ -58,7 +65,7 @@ export function parseSelection(
 ): PackingLine[] {
 	const lines: PackingLine[] = [];
 	for (const value of params.getAll('kit')) {
-		const [id, quantity, choices = '', pins = ''] = value.split('*');
+		const [id, quantity, choices = '', pins = '', notSleeping = ''] = value.split('*');
 		const kit = kits.find((k) => k.id === id);
 		const count = Number(quantity);
 		if (!kit || !Number.isInteger(count) || count <= 0) continue;
@@ -85,6 +92,10 @@ export function parseSelection(
 				line.pins[groupIndex] = id;
 			}
 		}
+		const notSleepingCount = Number(notSleeping);
+		if (Number.isInteger(notSleepingCount) && notSleepingCount > 0) {
+			line.notSleeping = Math.min(notSleepingCount, count);
+		}
 		lines.push(line);
 	}
 	return lines;
@@ -92,13 +103,19 @@ export function parseSelection(
 
 /** The `kit` query parameters for [lines], see [parseSelection]. */
 export function serializeSelection(lines: PackingLine[]): string[] {
-	return lines.map(({ kitId, quantity, choices, pins }) => {
+	return lines.map(({ kitId, quantity, choices, pins, notSleeping }) => {
 		const changed = choices.flatMap((choice, groupIndex) =>
 			choice > 0 ? [`${groupIndex}-${choice}`] : []
 		);
 		const pinned = pins.flatMap((pin, groupIndex) => (pin ? [`${groupIndex}-${pin}`] : []));
-		const segments = [kitId, String(quantity), changed.join('.'), pinned.join('.')];
-		// Built explicitly: an empty choices segment must stay when pins follow.
+		const segments = [
+			kitId,
+			String(quantity),
+			changed.join('.'),
+			pinned.join('.'),
+			notSleeping > 0 ? String(notSleeping) : ''
+		];
+		// Built explicitly: empty segments must stay when others follow.
 		while (segments.at(-1) === '') segments.pop();
 		return segments.join('*');
 	});
@@ -109,7 +126,8 @@ export type KitLine = PackingLine & { kit: Kit };
 
 /**
  * Combines lines with the same kit, choices and active pins (see `activePins`), summing their quantities, in the
- * order of their first appearance, and adds their kits; lines of unknown kits are dropped. While editing, identical
+ * order of their first appearance, and adds their kits; lines of unknown kits are dropped. The tents not for sleeping
+ * don't make lines different, since they don't change what is packed; they are summed too. While editing, identical
  * lines are allowed (merging them while a choice changes would make lines jump); the summary, the allocation and the
  * printed list use the combined lines.
  */
@@ -121,8 +139,10 @@ export function combineLines(lines: PackingLine[], kits: ReadonlyMap<string, Kit
 		const pins = activePins({ kit, ...line }).map((option) => (option ? optionId(option) : ''));
 		const key = `${line.kitId}*${line.choices.join('.')}*${pins.join('.')}`;
 		const existing = combined.get(key);
-		if (existing) existing.quantity += line.quantity;
-		else combined.set(key, { ...line, kit, choices: [...line.choices], pins: [...line.pins] });
+		if (existing) {
+			existing.quantity += line.quantity;
+			existing.notSleeping += line.notSleeping;
+		} else combined.set(key, { ...line, kit, choices: [...line.choices], pins: [...line.pins] });
 	}
 	return [...combined.values()];
 }
@@ -265,4 +285,87 @@ export function describeShortage(
 	}
 	const missing = units === 1 ? '1 Einheit fehlt' : `${units} Einheiten fehlen`;
 	return `${part}: ${missing} (${pieces.join(' oder ')})`;
+}
+
+/** Whether [kit] is a tent, which has sleeping places. */
+export function isTent(kit: Pick<Kit, 'sleepingPlaces'>): boolean {
+	return kit.sleepingPlaces != null;
+}
+
+/**
+ * The sleeping use of [quantity] tents of which [notSleeping] aren't for sleeping, as a choice in a select: "Zum
+ * Schlafen" / "Nicht zum Schlafen" for one tent, "Alle zum Schlafen", "2 von 3 zum Schlafen" or "Keins zum Schlafen"
+ * for several.
+ */
+export function sleepingLabel(quantity: number, notSleeping: number): string {
+	const sleeping = quantity - notSleeping;
+	if (quantity === 1) return sleeping === 1 ? 'Zum Schlafen' : 'Nicht zum Schlafen';
+	if (sleeping === quantity) return 'Alle zum Schlafen';
+	if (sleeping === 0) return 'Keins zum Schlafen';
+	return `${sleeping} von ${quantity} zum Schlafen`;
+}
+
+export interface SleepingPlaces {
+	normal: number;
+	/** With the tight number of the tents that have one, and the normal number of the others. */
+	tight: number;
+}
+
+/** The sleeping places of one [kit]; a missing tight number is the normal one, and a kit that isn't a tent has none. */
+export function kitSleepingPlaces(
+	kit: Pick<Kit, 'sleepingPlaces' | 'sleepingPlacesTight'>
+): SleepingPlaces {
+	const normal = kit.sleepingPlaces ?? 0;
+	return { normal, tight: kit.sleepingPlacesTight ?? normal };
+}
+
+/** The sleeping places of the tents for sleeping on [lines]. */
+export function sleepingPlacesOf(
+	lines: (Pick<PackingLine, 'quantity' | 'notSleeping'> & {
+		kit: Pick<Kit, 'sleepingPlaces' | 'sleepingPlacesTight'>;
+	})[]
+): SleepingPlaces {
+	let normal = 0;
+	let tight = 0;
+	for (const { kit, quantity, notSleeping } of lines) {
+		const places = kitSleepingPlaces(kit);
+		normal += (quantity - notSleeping) * places.normal;
+		tight += (quantity - notSleeping) * places.tight;
+	}
+	return { normal, tight };
+}
+
+/** "4 Schlafplätze (eng 5)", leaving out the tight number where it's the same; empty without sleeping places. */
+export function sleepingPlacesText({ normal, tight }: SleepingPlaces): string {
+	if (normal === 0) return '';
+	const places = `${normal} ${normal === 1 ? 'Schlafplatz' : 'Schlafplätze'}`;
+	return tight === normal ? places : `${places} (eng ${tight})`;
+}
+
+/**
+ * The weight of [needs] in grams. A need's pieces weigh what its variant weighs ([weights] by variant id); pieces of
+ * any variant count with the heaviest of the material's [variantIds] (by material id). Materials without a weight
+ * count as 0: most light things are never weighed. Missing pieces count too: it's the weight of the selection.
+ */
+export function weightOf(
+	needs: Pick<MaterialNeed, 'materialId' | 'variantId' | 'required'>[],
+	weights: ReadonlyMap<string, number | null>,
+	variantIds: ReadonlyMap<string, readonly string[]>
+): number {
+	let grams = 0;
+	for (const need of needs) {
+		const ids = need.variantId ? [need.variantId] : (variantIds.get(need.materialId) ?? []);
+		grams += need.required * Math.max(0, ...ids.map((id) => weights.get(id) ?? 0));
+	}
+	return grams;
+}
+
+/**
+ * The summary of a packing list, e.g. "65 Schlafplätze (eng 75) · 272 kg", without the parts that are 0; empty if
+ * both are.
+ */
+export function packingSummary(places: SleepingPlaces, grams: number): string {
+	return [sleepingPlacesText(places), grams > 0 ? formatKg(grams, { total: true }) : '']
+		.filter(Boolean)
+		.join(' · ');
 }

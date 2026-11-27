@@ -24,6 +24,8 @@
 	const form = $state({
 		name: kit?.name ?? '',
 		description: kit?.description ?? '',
+		sleepingPlaces: kit?.sleepingPlaces ?? null,
+		sleepingPlacesTight: kit?.sleepingPlacesTight ?? null,
 		groups: (kit?.groups ?? []).map((group) => ({
 			name: group.name ?? '',
 			// The first amount is the default in the packing list; a single amount has no label.
@@ -119,6 +121,8 @@
 		const body: NewKit = {
 			name: form.name,
 			description: orNull(form.description),
+			sleepingPlaces: form.sleepingPlaces ?? null,
+			sleepingPlacesTight: form.sleepingPlacesTight ?? null,
 			groups: form.groups.map((group) => ({
 				name: orNull(group.name),
 				amounts: group.amounts.map(({ label, requiredUnits }) => ({
@@ -163,6 +167,36 @@
 		<Field label="Beschreibung" id="kit-description">
 			<Input id="kit-description" bind:value={form.description} />
 		</Field>
+		<!-- The browser checks what the API checks too: a tight number needs a normal one and is at least as large. -->
+		<div class="grid gap-2">
+			<div class="grid grid-cols-2 gap-4 sm:max-w-sm">
+				<Field label="Schlafplätze" id="kit-sleeping-places">
+					<Input
+						id="kit-sleeping-places"
+						type="number"
+						min={1}
+						max={1000}
+						required={form.sleepingPlacesTight != null}
+						bind:value={form.sleepingPlaces}
+						aria-describedby="kit-sleeping-places-hint"
+					/>
+				</Field>
+				<Field label="Schlafplätze eng" id="kit-sleeping-places-tight">
+					<Input
+						id="kit-sleeping-places-tight"
+						type="number"
+						min={form.sleepingPlaces ?? 1}
+						max={1000}
+						bind:value={form.sleepingPlacesTight}
+						aria-describedby="kit-sleeping-places-hint"
+					/>
+				</Field>
+			</div>
+			<p id="kit-sleeping-places-hint" class="text-sm text-muted-foreground">
+				Nur für Zelte; leer lassen, wenn das Set kein Zelt ist. Eng: z. B. für Wölflinge oder dicht
+				belegt (leer = wie normal).
+			</p>
+		</div>
 	</div>
 
 	<div class="space-y-2">

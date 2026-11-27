@@ -5322,6 +5322,7 @@ export interface components {
             /** Format: uuid */
             id: string;
             name?: string | null;
+            weightGrams?: number | null;
             availableCount: number;
             damagedCount: number;
             loanedCount: number;
@@ -5352,6 +5353,7 @@ export interface components {
             /** Format: uuid */
             id: string;
             name?: string | null;
+            weightGrams?: number | null;
             availableCount: number;
             damagedCount: number;
             loanedCount: number;
@@ -5382,6 +5384,7 @@ export interface components {
             /** Format: uuid */
             id?: string | null;
             name?: string | null;
+            weightGrams?: number | null;
             availableCount: number;
             damagedCount?: number;
             /** Format: uuid */
@@ -5407,6 +5410,7 @@ export interface components {
             /** Format: uuid */
             id?: string | null;
             name?: string | null;
+            weightGrams?: number | null;
         };
         /** NewIndividualMaterial */
         NewIndividualMaterial: {
@@ -5574,6 +5578,8 @@ export interface components {
             id: string;
             name: string;
             description?: string | null;
+            sleepingPlaces?: number | null;
+            sleepingPlacesTight?: number | null;
             groups: components["schemas"]["KitGroup"][];
         };
         /** NewKitGroupAmount */
@@ -5600,6 +5606,8 @@ export interface components {
         NewKit: {
             name: string;
             description?: string | null;
+            sleepingPlaces?: number | null;
+            sleepingPlacesTight?: number | null;
             groups: components["schemas"]["NewKitGroup"][];
         };
         /** LoanQuantity */

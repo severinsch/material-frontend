@@ -135,6 +135,30 @@ export function formatPrice(value: number | null | undefined): string {
 	return value == null ? '—' : priceFormat.format(value);
 }
 
+const pieceWeightFormat = new Intl.NumberFormat('de-DE', { maximumFractionDigits: 3 });
+const totalWeightFormat = new Intl.NumberFormat('de-DE', { maximumFractionDigits: 0 });
+const smallTotalWeightFormat = new Intl.NumberFormat('de-DE', { maximumFractionDigits: 1 });
+
+/**
+ * Formats a weight in grams as kg: a piece exactly ("2,218 kg"), a total in whole kg from 10 kg on ("272 kg") and with
+ * one decimal below ("7,4 kg").
+ */
+export function formatKg(grams: number, { total = false } = {}): string {
+	const kg = grams / 1000;
+	const format = !total ? pieceWeightFormat : kg < 10 ? smallTotalWeightFormat : totalWeightFormat;
+	return `${format.format(kg)} kg`;
+}
+
+/** A weight entered in kg as whole grams; null (an empty number input) stays null. */
+export function kgToGrams(kg: number | null | undefined): number | null {
+	return kg == null || Number.isNaN(kg) ? null : Math.round(kg * 1000);
+}
+
+/** A weight in grams as kg for a number input, e.g. 2218 → 2.218. */
+export function gramsToKg(grams: number | null | undefined): number | null {
+	return grams == null ? null : grams / 1000;
+}
+
 /** Today's date in Germany as `YYYY-MM-DD`. */
 export function today(): string {
 	return isoDateFormat.format(new Date());
